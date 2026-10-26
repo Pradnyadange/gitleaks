@@ -1,0 +1,74 @@
+[
+  {
+    "fingerprint": "9e77c95e6089a28c2d1a2483e21260292e86b162:.env:stripe-access-token:1",
+    "rule_id": "stripe-access-token",
+    "description": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
+    "file": ".env",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "9e77c95e6089a28c2d1a2483e21260292e86b162",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 4.6875,
+    "masked_secret": "sk_l****Ho",
+    "code_context": [
+      "STRIPE_KEY=sk_l****Ho"
+    ],
+    "path_type": "config",
+    "in_history_only": false
+  },
+  {
+    "fingerprint": "9e77c95e6089a28c2d1a2483e21260292e86b162:tests/test_auth.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "tests/test_auth.py",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "9e77c95e6089a28c2d1a2483e21260292e86b162",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 5.221928,
+    "masked_secret": "ghp_****nN",
+    "code_context": [
+      "TEST_TOKEN = \"ghp_****nN\""
+    ],
+    "path_type": "test",
+    "in_history_only": false
+  },
+  {
+    "fingerprint": "9e77c95e6089a28c2d1a2483e21260292e86b162:config.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "config.py",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "9e77c95e6089a28c2d1a2483e21260292e86b162",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 5.171928,
+    "masked_secret": "ghp_****Ko",
+    "code_context": [
+      "GITHUB_TOKEN = \"ghp_****Ko\""
+    ],
+    "path_type": "source",
+    "in_history_only": false
+  },
+  {
+    "fingerprint": "72e597d1087080d694c3c4f4735b51ca5c30617c:old.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "old.py",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "72e597d1087080d694c3c4f4735b51ca5c30617c",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 5.321928,
+    "masked_secret": "ghp_****Q9",
+    "code_context": [
+      "OLD_KEY = \"ghp_****Q9\""
+    ],
+    "path_type": "source",
+    "in_history_only": true
+  }
+]

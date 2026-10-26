@@ -1,0 +1,47 @@
+[
+  {
+    "fingerprint": "D:/GitLeaks/leaky-demo/config.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "D:/GitLeaks/leaky-demo/config.py",
+    "start_line": 1,
+    "end_line": 1,
+    "entropy": 5.171928,
+    "masked_secret": "ghp_****Ko",
+    "code_context": [
+      "GITHUB_TOKEN = \"ghp_****Ko\""
+    ],
+    "path_type": "example",
+    "in_history_only": false
+  },
+  {
+    "fingerprint": "D:/GitLeaks/leaky-demo/.env:stripe-access-token:1",
+    "rule_id": "stripe-access-token",
+    "description": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
+    "file": "D:/GitLeaks/leaky-demo/.env",
+    "start_line": 1,
+    "end_line": 1,
+    "entropy": 4.6875,
+    "masked_secret": "sk_l****Ho",
+    "code_context": [
+      "STRIPE_KEY=sk_l****Ho"
+    ],
+    "path_type": "example",
+    "in_history_only": false
+  },
+  {
+    "fingerprint": "D:/GitLeaks/leaky-demo/tests/test_auth.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "D:/GitLeaks/leaky-demo/tests/test_auth.py",
+    "start_line": 1,
+    "end_line": 1,
+    "entropy": 5.221928,
+    "masked_secret": "ghp_****nN",
+    "code_context": [
+      "TEST_TOKEN = \"ghp_****nN\""
+    ],
+    "path_type": "test",
+    "in_history_only": false
+  }
+]
