@@ -1,0 +1,106 @@
+[
+  {
+    "fingerprint": "9e77c95e6089a28c2d1a2483e21260292e86b162:config.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "config.py",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "9e77c95e6089a28c2d1a2483e21260292e86b162",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 5.1719279289245605,
+    "masked_secret": "ghp_****Ko",
+    "secret_length": 40,
+    "code_context": [
+      "GITHUB_TOKEN = \"ghp_****Ko\""
+    ],
+    "path_type": "source",
+    "in_history_only": false,
+    "triage": {
+      "verdict": "real_secret",
+      "confidence": 0.9,
+      "reason": "A GitHub Personal Access Token (ghp_ prefix) is directly assigned to a variable named GITHUB_TOKEN in a config.py file. This strongly suggests a hardcoded, usab",
+      "source": "llm",
+      "cached": false
+    }
+  },
+  {
+    "fingerprint": "72e597d1087080d694c3c4f4735b51ca5c30617c:old.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "old.py",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "72e597d1087080d694c3c4f4735b51ca5c30617c",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 5.321928024291992,
+    "masked_secret": "ghp_****Q9",
+    "secret_length": 40,
+    "code_context": [
+      "OLD_KEY = \"ghp_****Q9\""
+    ],
+    "path_type": "source",
+    "in_history_only": true,
+    "triage": {
+      "verdict": "real_secret",
+      "confidence": 0.9,
+      "reason": "The finding is a GitHub Personal Access Token (ghp_ prefix, 40 characters long) found in source code history. Even though it's in an 'old.py' file and named 'OL",
+      "source": "llm",
+      "cached": false
+    }
+  },
+  {
+    "fingerprint": "9e77c95e6089a28c2d1a2483e21260292e86b162:.env:stripe-access-token:1",
+    "rule_id": "stripe-access-token",
+    "description": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
+    "file": ".env",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "9e77c95e6089a28c2d1a2483e21260292e86b162",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 4.6875,
+    "masked_secret": "sk_l****Ho",
+    "secret_length": 32,
+    "code_context": [
+      "STRIPE_KEY=sk_l****Ho"
+    ],
+    "path_type": "config",
+    "in_history_only": false,
+    "triage": {
+      "verdict": "real_secret",
+      "confidence": 0.95,
+      "reason": "The secret is a Stripe secret key (sk_l****Ho) found in a .env configuration file, assigned to a variable named STRIPE_KEY. This is a common pattern for storing",
+      "source": "llm",
+      "cached": false
+    }
+  },
+  {
+    "fingerprint": "9e77c95e6089a28c2d1a2483e21260292e86b162:tests/test_auth.py:github-pat:1",
+    "rule_id": "github-pat",
+    "description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+    "file": "tests/test_auth.py",
+    "start_line": 1,
+    "end_line": 1,
+    "commit": "9e77c95e6089a28c2d1a2483e21260292e86b162",
+    "author": "Pradnyadange",
+    "date": "2026-10-26T11:45:40Z",
+    "entropy": 5.221928119659424,
+    "masked_secret": "ghp_****nN",
+    "secret_length": 40,
+    "code_context": [
+      "TEST_TOKEN = \"ghp_****nN\""
+    ],
+    "path_type": "test",
+    "in_history_only": false,
+    "triage": {
+      "verdict": "likely_false_positive",
+      "confidence": 0.9,
+      "reason": "The secret is found in a test file (tests/test_auth.py) and assigned to a variable named TEST_TOKEN, strongly indicating it's a placeholder or a token used for ",
+      "source": "llm",
+      "cached": false
+    }
+  }
+]
