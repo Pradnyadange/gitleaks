@@ -22,3 +22,13 @@ testdata/expected/report/*.got.*
 *.out
 
 dist/
+
+dryrun.txt
+*-audit.json
+p2-*.json
+p3-*.json
+raw*.json
+restored.json
+.secretsentinel-cache.json
+*.broken
+*.new
