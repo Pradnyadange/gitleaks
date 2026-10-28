@@ -55,6 +55,9 @@ func TriageFindings(ctx context.Context, findings []EnrichedFinding, client LLMC
 	if opts.Model == "" {
 		opts.Model = "default-model"
 	}
+	if opts.DryRun {
+		return DryRunTriage(findings, opts)
+	}
 
 	cache := make(map[string]cacheEntry)
 	if !disableCacheForTest {

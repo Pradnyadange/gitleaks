@@ -36,7 +36,7 @@ var auditCmd = &cobra.Command{
 			targetPath = args[0]
 		}
 
-		if triageEnabled && !triageOffline {
+		if triageEnabled && !triageOffline && !triageDryRun {
 			if geminiModel == "" {
 				geminiModel = os.Getenv("GEMINI_MODEL")
 			}
@@ -124,7 +124,7 @@ var auditCmd = &cobra.Command{
 			secLen := len(f.Secret)
 
 			ctxLines := auditContextLines
-			if triageContextLines > 0 && triageContextLines < auditContextLines {
+			if triageEnabled && triageContextLines > 0 && triageContextLines < auditContextLines {
 				ctxLines = triageContextLines
 			}
 
