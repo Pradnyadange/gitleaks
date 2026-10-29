@@ -2,9 +2,9 @@
 
 **An AI-powered code security auditor built on top of [Gitleaks](https://github.com/gitleaks/gitleaks).**
 
+Track: Cybersecurity & Privacy | Team: [Team name] | Members: [Name] · [Name] · [Name]
 
-
-> Gitleaks finds *possible* secrets. SecretSentinel answers the questions developers actually need answered: **Is it real? How dangerous is it? How do I fix it? How do I recover?**
+> Gitleaks finds *possible* secrets. SecretSentinel answers the questions developers actually need answered: **Is it real? How dangerous is it? How do I stop the noise? How do I fix it?**
 
 ---
 
@@ -13,12 +13,12 @@
 | Phase | Goal | Status |
 |---|---|---|
 | 1. Foundation | `gitleaks audit` command with enriched findings | **Done** |
-| 2. AI triage | Verdict, confidence and reason per finding (Gemini + offline fallback + cache) | **Done** |
-| 3. Risk and allowlist | Risk ranking, auto-generated `.gitleaksignore`, Markdown/HTML report | Planned |
-| 4. Auto-fix and recovery | Fix pull request, key rotation playbooks | Planned |
-| 5. Demo and submission | Demo repo, tests, final presentation | Planned |
+| 2. AI triage | Verdict, confidence and reason per finding (Gemini, offline fallback, cache) | **Done** |
+| 3. Risk, allowlist, reports | Risk ranking, safe allowlist suggestions, Markdown/HTML reports, rate-limit handling | **Done** |
+| 4. Auto-fix and recovery | Move hardcoded secrets to environment variables on a review branch, rotation playbooks | Planned |
+| 5. Demo and submission | Demo repo, slides, recording | Planned |
 
-This README documents what exists **today (Phases 1 and 2)**. Anything marked Planned is not implemented yet.
+This README documents what exists **today (Phases 1 to 3)**. Anything marked Planned is not implemented. See [Known Limitations](#known-limitations).
 
 ---
 
@@ -37,12 +37,25 @@ Gitleaks provides git-history, directory and stdin scanning, a regex and entropy
 
 | Gap in Gitleaks alone | SecretSentinel feature | Phase |
 |---|---|---|
-| Output is a raw list of matches | Enriched findings: code context, masked secret, path type, history-only flag | 1 (done) |
-| Cannot tell a real key from a placeholder | AI triage with verdict, confidence and reason | 2 (done) |
-| All findings look equally urgent | Risk scoring and ranking | 3 |
-| Allowlists are written by hand | Auto-generated allowlist from confirmed false positives | 3 |
-| Detects but never fixes | Auto-fix pull request (env var, `.env.example`, `.gitignore`) | 4 |
-| No recovery guidance | Provider-specific rotation playbook | 4 |
+| Output is a raw list of matches | Enriched findings: masked secret, code context, path type, history-only flag | 1 |
+| Cannot tell a real key from a placeholder | AI triage: verdict, confidence, reason | 2 |
+| All findings look equally urgent | Risk score and level, findings ranked by risk | 3 |
+| Allowlists are written by hand | Suggested allowlist built from high-confidence AI false positives | 3 |
+| Output is raw JSON for experts | Markdown and HTML reports | 3 |
+| Detects but never fixes | Auto-fix on a review branch (env vars, `.env.example`, `.gitignore`) | 4 (planned) |
+| No recovery guidance | Provider-specific rotation playbooks | 4 (planned) |
+
+## Results So Far
+
+On a small demo repository with 7 findings (3 real leaks and 4 decoys: a test file, a docs example, a test fixture and an `.env.example` placeholder):
+
+- Gitleaks reports **7** alerts.
+- AI triage labels **3 as `real_secret` and 4 as `likely_false_positive`**, matching hand labels.
+- Risk ranking puts the three real leaks first (`critical`, `critical`, `high`) and the decoys at `info` or `low`.
+- The generated allowlist suppresses the 4 decoys: a Gitleaks scan with it reports **3**, with 0 invalid-entry warnings, and none of the real secrets are suppressed.
+- A second run costs 0 API calls (served from the cache).
+
+This is a small, hand-built set, and several decoys carry obvious hints in their path or comments, so treat it as a working demonstration and not an accuracy benchmark. Harder cases (a real key in a test or docs file, a revoked key in source) are still to be evaluated.
 
 ---
 
@@ -53,7 +66,8 @@ Repo or folder
    -> Gitleaks scan (unchanged engine)
    -> Enrichment: masked secret, code context, path type, history-only flag
    -> Triage: Gemini verdict (or offline heuristics), cached by fingerprint
-   -> audit-findings.json
+   -> Risk score and level, sorted highest first
+   -> Optional outputs: JSON, suggested allowlist, Markdown/HTML report
 ```
 
 ## Quick Start
@@ -69,25 +83,25 @@ go build -o gitleaks .
 **1. Enrich findings only (no AI, no network):**
 
 ```bash
-./gitleaks audit --mode dir ./path/to/project --audit-output audit-findings.json
-./gitleaks audit --mode git ./path/to/repo    --audit-output audit-findings.json
+./gitleaks audit --mode git ./path/to/repo --audit-output audit-findings.json
+./gitleaks audit --mode dir ./path/to/project
 ```
 
-**2. Add triage without any network (heuristics only):**
+**2. Triage with offline heuristics only:**
 
 ```bash
 ./gitleaks audit --mode git ./path/to/repo --triage --offline
 ```
 
-**3. Add AI triage with Gemini:**
+**3. Triage with Gemini:**
 
 ```bash
-export GEMINI_API_KEY="your-key"      # PowerShell: $env:GEMINI_API_KEY = "your-key"
-export GEMINI_MODEL="gemini-2.5-flash"  # or pass --gemini-model
+export GEMINI_API_KEY="..."              # PowerShell: $env:GEMINI_API_KEY = "..."
+export GEMINI_MODEL="gemini-2.5-flash"   # or pass --gemini-model
 ./gitleaks audit --mode git ./path/to/repo --triage
 ```
 
-List the models your key can use, then pick a stable (non-preview) Flash model:
+List the models your key can use and pick a stable (non-preview) Flash model:
 
 ```powershell
 Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models" `
@@ -95,6 +109,13 @@ Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models"
   Select-Object -ExpandProperty models |
   Where-Object { $_.supportedGenerationMethods -contains "generateContent" } |
   Select-Object name
+```
+
+**4. Full run with allowlist suggestions and a report:**
+
+```bash
+./gitleaks audit --mode git ./path/to/repo --triage \
+  --generate-allowlist --generate-report --report-format html --report-output audit-report.html
 ```
 
 On Windows without building: `go run main.go audit --mode git "D:\path\to\repo" --triage`.
@@ -109,22 +130,32 @@ On Windows without building: `go run main.go audit --mode git "D:\path\to\repo" 
 | `--include-raw-secret` | `false` | Write raw secrets to the output. **Leave off** |
 | `--triage` | `false` | Enable triage of each finding |
 | `--offline` | `false` | Triage with heuristics only, zero network calls |
-| `--triage-dry-run` | `false` | Print the prompts that would be sent, send nothing |
+| `--triage-dry-run` | `false` | Print the exact prompts that would be sent, send nothing, no key needed |
 | `--gemini-model` | env `GEMINI_MODEL` | Gemini model name. No default is hard-coded |
 | `--triage-concurrency` | `3` | Parallel triage workers |
+| `--triage-rpm` | `0` (unlimited) | Maximum requests per minute, to stay under free-tier limits |
 | `--max-findings` | `50` | Maximum findings to triage per run |
-| `--triage-context-lines` | `10` | Context lines included in the prompt (kept small on purpose) |
+| `--triage-context-lines` | `10` | Context lines included in the prompt (applies only with `--triage`) |
+| `--generate-allowlist` | `false` | Write suggested allowlist entries |
+| `--allowlist-output` | `.gitleaksignore.suggested` | Where to write them |
+| `--allowlist-min-confidence` | `0.8` | Minimum LLM confidence for an entry |
+| `--allowlist-dry-run` | `false` | Print entries without writing |
+| `--generate-report` | `false` | Write a summary report |
+| `--report-format` | `markdown` | `markdown` or `html` |
+| `--report-output` | `audit-report.md` | Report path |
 
 Existing Gitleaks flags (`--config`, `--baseline-path`, `--gitleaks-ignore-path`) still apply.
+
+> Note: `--report-format` on `audit` has the same name as a global Gitleaks flag. Check `audit --help` if you want to confirm which one applies in your build.
 
 ### Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `GEMINI_API_KEY` | Gemini key, read only from the environment and sent in the `x-goog-api-key` header. Never a flag, never logged |
+| `GEMINI_API_KEY` | Read only from the environment and sent in the `x-goog-api-key` header. Never a flag, never logged |
 | `GEMINI_MODEL` | Model name used when `--gemini-model` is not set |
 
-Running `--triage` without `--offline` and without a key or model exits with a clear error. It does not silently fall back to heuristics.
+Running `--triage` without `--offline` and without a key or model exits with a clear error. It does not silently fall back to heuristics. `--triage-dry-run` needs neither.
 
 ### Exit codes
 
@@ -137,19 +168,15 @@ Running `--triage` without `--offline` and without a key or model exits with a c
 
 ## Output
 
-Illustrative record (values shortened; field names match the real output):
+Illustrative record (values shortened; field names follow the real output):
 
 ```json
 {
   "rule_id": "stripe-access-token",
-  "description": "Stripe access token",
   "file": ".env",
   "start_line": 1,
   "end_line": 1,
   "commit": "9e77c95...",
-  "author": "...",
-  "date": "...",
-  "entropy": 4.1,
   "fingerprint": "9e77c95...:.env:stripe-access-token:1",
   "path_type": "config",
   "in_history_only": false,
@@ -162,21 +189,24 @@ Illustrative record (values shortened; field names match the real output):
     "reason": "Live-format Stripe key assigned in a config file.",
     "source": "llm",
     "cached": false
-  }
+  },
+  "risk_score": 84,
+  "risk_level": "critical"
 }
 ```
 
-After a triage run, a summary is printed:
+Findings are sorted by risk score, highest first. A triage summary is printed after each triage run:
 
 ```
 === SECRET SENTINEL TRIAGE SUMMARY ===
 Total Findings Processed: 7
 Verdicts:   real_secret: 3, likely_false_positive: 4
 Sources:    llm: 7
-API Calls Made: 3
-Cache Hits: 4
-LLM Successes: 3
+API Calls Made: 0
+Cache Hits: 7
+LLM Successes: 0
 LLM Failures: 0
+Retries after 429: 0
 ```
 
 ### Triage verdicts
@@ -185,25 +215,46 @@ LLM Failures: 0
 |---|---|
 | `real_secret` | Looks like a genuine credential in production-relevant code |
 | `likely_false_positive` | Placeholder, test fixture, documentation example, hash, ID, or non-secret |
-| `needs_review` | Not enough evidence; the model is told to be conservative |
+| `needs_review` | Not enough evidence. The model is told to be conservative |
 
-Each triage result includes a `confidence` (0 to 1, clamped), a one-sentence `reason`, a `source` (`llm` or `heuristic`), and a `cached` flag.
+Each result has a `confidence` (0 to 1, clamped), a one-sentence `reason`, a `source` (`llm` or `heuristic`) and a `cached` flag.
+
+### Risk levels
+
+Findings get a 0 to 100 score and a level: `critical`, `high`, `medium`, `low` or `info`. The score uses path type, history-only status, entropy and the triage verdict. It also works with no triage at all. An AI-confirmed false positive maps to `info`.
 
 ### Offline heuristics
 
 Used by `--offline` and as the automatic fallback when an LLM call fails. They never output `real_secret`:
 
 - test, example or docs paths -> `likely_false_positive`
-- placeholder-style text in the secret or context (for example `example`, `changeme`, `dummy`, `placeholder`) -> `likely_false_positive`
+- placeholder-style text in the secret or context (`example`, `changeme`, `dummy`, `placeholder`) -> `likely_false_positive`
 - everything else -> `needs_review`
 
 ### Cache
 
 Results are cached in `.secretsentinel-cache.json` so reruns cost nothing.
 
-- Only results from the LLM are cached. Heuristic results are never cached or served as cache hits.
-- The cache key combines the finding fingerprint, the model name and a prompt version, so changing the model or prompt invalidates old entries.
+- Only LLM results are cached. Heuristic results are never cached or served as cache hits.
+- The key is fingerprint + model name + a prompt version, so changing the model or prompt invalidates old entries.
 - Failed LLM calls fall back to heuristics, are not cached, and are counted as failures.
+
+### Rate limits
+
+The Gemini free tier allows only a few requests per minute. On HTTP 429 the client waits the `retryDelay` Google returns before retrying, and only 429 and 5xx responses are retried. Use `--triage-rpm 4` and `--triage-concurrency 1` to stay under the limit, and run triage ahead of time so reruns come from the cache.
+
+### Suggested allowlist
+
+`--generate-allowlist` writes **per-finding fingerprints**, one per line, in the format Gitleaks expects, each with a `# SecretSentinel:` comment giving the reason. The rules are strict:
+
+- Only findings with `source: llm`, verdict `likely_false_positive` and confidence at or above the threshold qualify. Heuristic, `real_secret` and `needs_review` findings never do.
+- Output goes to `.gitleaksignore.suggested` by default. Review it, then merge it into your real `.gitleaksignore` yourself. Nothing is activated automatically.
+- Entries are appended, de-duplicated and backed up once (`.bak`) before the first change. Reason text is sanitized so it cannot inject extra lines.
+- Nothing is written when no finding qualifies, and `--allowlist-dry-run` shows what would be added.
+
+### Reports
+
+`--generate-report` writes a Markdown or HTML report of the ranked findings (rule, file, risk level, score, verdict, source). The HTML report is one self-contained file, rendered through `html/template` so code context is escaped, with no scripts and no external requests. Reports contain masked values only.
 
 ### Path types
 
@@ -220,48 +271,50 @@ Results are cached in `.secretsentinel-cache.json` so reruns cost nothing.
 
 ## Privacy and Security Design
 
-Sending code to an LLM is itself a risk, so SecretSentinel is built to send as little as possible:
+Sending code to an LLM is itself a risk, so SecretSentinel sends as little as possible:
 
-- **Raw secrets never reach the prompt.** Prompts contain only the masked value, the secret's length, and redacted code context. A test fails if a prompt ever contains a raw secret.
-- **Short secrets reveal nothing.** Partial masking (first 4 characters, `****`, last 2) applies only to secrets of 16 or more characters. Shorter secrets are fully masked.
-- **Small context window.** Only 10 lines around the finding are sent by default (`--triage-context-lines`).
-- **Free-tier note.** Google states that content sent through the free Gemini API tier may be used to improve its products, so the redaction above matters. Use a paid tier or the `--offline` mode for sensitive repositories.
-- **Prompt-injection defense.** Code context is treated as untrusted data. The system prompt tells the model to ignore any instructions found inside it, and every response is validated (allowed verdict values, clamped confidence, truncated reason).
-- **Key handling.** The API key is read only from the environment and is never logged. Rotate any key that has ever been pasted into a chat, file or commit.
-- **Safe failure.** If the model returns bad output or the API fails, the finding falls back to heuristics and the scan continues.
+- **Raw secrets never reach the prompt.** Prompts contain the masked value, the secret length and redacted context. A test fails if a prompt contains a raw secret.
+- **Short secrets reveal nothing.** Partial masking (first 4 characters, `****`, last 2) applies only to secrets of 16 or more characters. Shorter ones are fully masked.
+- **Small context window.** 10 lines by default for prompts (`--triage-context-lines`).
+- **Free-tier note.** Google states that content sent through the free Gemini API tier may be used to improve its products. Use a paid tier or `--offline` for sensitive repositories.
+- **Prompt-injection defense.** Code context is treated as untrusted data. The system prompt tells the model to ignore instructions inside it, and every response is validated (allowed verdicts, clamped confidence, truncated reason).
 - **Dry run.** `--triage-dry-run` prints exactly what would be sent so you can inspect it first.
+- **Key handling.** The API key is read only from the environment and is never logged. Rotate any key that has ever been pasted into a chat, file or commit.
+- **Safe failure.** Bad model output or API failure falls back to heuristics and the scan continues.
 
-Never commit audit output. Add `*-audit.json`, `audit-findings.json`, `.secretsentinel-cache.json` and `.env` to `.gitignore`.
+Never commit audit output. `*-audit.json`, `audit-findings.json`, `.secretsentinel-cache.json`, `.gitleaksignore.suggested`, `*.bak` and `.env` are in `.gitignore`.
 
----
+## Known Limitations
 
-## Results So Far
-
-On a small demo repository with 7 findings (3 real leaks, 4 decoys such as a test file, a docs example, a test fixture and an `.env.example` placeholder), AI triage classified all 7 as expected: 3 `real_secret` and 4 `likely_false_positive`, with 0 failures. A second run made 0 API calls.
-
-This is a small, hand-built set and several decoys carry obvious hints in their path or comments, so treat it as a working demonstration and not as an accuracy benchmark. Harder cases (a real key in a test or docs file, a revoked key in source) are the next evaluation step.
-
----
+- **Multi-line secrets (for example private keys) are not fully masked yet.** The current masking replaces the secret inside single lines, so the body of a multi-line key can appear in `code_context` and in the prompt. Found by scanning this repository's own history with SecretSentinel. A fix is in progress. Until then, do not use `--triage` (online) on repositories that contain private key files, and do not share the output.
+- **Free-tier rate limits.** Gemini's free tier can reject bursts of requests. Failed calls fall back to heuristics and are not cached.
+- **Small evaluation set.** Accuracy has been checked on a small demo repository only.
+- **AI verdicts can be wrong.** An allowlist built from model output can hide a real leak, so suggestions are written to a separate file for human review.
 
 ## Project Structure (SecretSentinel additions)
 
 ```
 cmd/
-  audit.go            # `audit` command, flags, JSON output, triage summary
+  audit.go            # `audit` command, flags, JSON output, summaries
 audit/
   types.go            # EnrichedFinding and Triage structs
   mask.go             # secret masking (16-character boundary)
   pathtype.go         # path classification
   context.go          # code context extraction and redaction
   llm.go              # LLMClient interface
-  gemini.go           # Gemini REST client (net/http, retries with backoff)
+  gemini.go           # Gemini REST client (net/http, retry-after handling)
+  ratelimit.go        # requests-per-minute limiter
   prompt.go           # system prompt and user prompt builder
   heuristics.go       # offline fallback triage
   triage.go           # worker pool, cache, response validation
-  audit_test.go       # unit tests
+  dryrun.go           # prompt preview with no credentials or network
+  risk.go             # risk score and level
+  allowlist_safe.go   # safe allowlist suggestion writer
+  report.go           # Markdown and HTML reports
+  *_test.go           # unit tests
 ```
 
-The Gitleaks detection engine (`detect/`, `sources/`, `config/`) is **not modified**. SecretSentinel layers on top of it, which keeps upstream behavior intact.
+The Gitleaks detection engine (`detect/`, `sources/`, `config/`) is **not modified**.
 
 ## Testing
 
@@ -270,18 +323,18 @@ go build ./...
 go test -v ./audit/...
 ```
 
-Covered today: secret masking (including the 15/16/17-character boundary), path classification, context extraction edge cases (first line, missing file), triage with a mock LLM, malformed JSON from the model, invalid verdict values, confidence clamping, prompt-injection text in code context, cache behavior (offline results not cached, LLM results cached, model change invalidates the cache, failed calls not cached), and a check that prompts never contain a raw secret.
+Covered today: secret masking (including the 15/16/17-character boundary), path classification, context extraction edge cases, triage with a mock LLM (valid and malformed JSON, invalid verdicts, confidence clamping, prompt injection), cache behavior (offline not cached, LLM cached, model change invalidates, failures not cached), dry run (no credentials, no cache writes), 429 retry-delay parsing and non-retry of other 4xx errors, rate limiter spacing, risk scoring (nil triage, false positives map to `info`, score clamping), allowlist safety (eligibility, injection, dedupe, backup, dry run, nothing written when nothing qualifies), and report generation (sorting, HTML escaping, no raw secrets, nil triage).
 
-End-to-end check: scan a small repo of fake secrets, compare finding counts against plain `gitleaks git` / `gitleaks dir`, and search every output file (including the cache) for the real secret values. None should appear.
+End-to-end check: scan a repo of fake secrets, compare finding counts with plain `gitleaks git` / `gitleaks dir`, and search every output file (including the cache and reports) for the real secret values. None should appear.
 
 ## Roadmap
 
-1. **Phase 3: Risk and allowlist.** Risk score and level from secret type, path type, exposure and triage verdict; confirmed false positives written to `.gitleaksignore`; readable Markdown and HTML report.
-2. **Phase 4: Auto-fix and recovery.** Patch that moves hardcoded secrets to environment variables, a pull request through the GitHub API, and rotation playbooks for common providers.
-3. **Stretch goals.** Git history cleanup plan (`git filter-repo` commands with warnings), consent-based key liveness check, Semgrep integration for broader code vulnerabilities.
+1. **Phase 4: Auto-fix and recovery.** Preview-first fixes that move hardcoded secrets to environment variables on a new local branch (never auto-merged, never pushed by default), untrack `.env` files and generate `.env.example`, rotation playbooks for common providers, and an opt-in pull request.
+2. **Multi-line secret masking** (see Known Limitations).
+3. **Stretch goals.** Git history cleanup plan (`git filter-repo` commands with warnings), consent-based key liveness check, Semgrep integration.
 
 ## Credits and License
 
-SecretSentinel is a fork of [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) by Zachary Rice and contributors, released under the MIT License. See [LICENSE](LICENSE). Upstream documentation for the original commands and configuration is at [gitleaks.io](https://gitleaks.io).
+SecretSentinel is a fork of [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) by Zachary Rice and contributors, released under the MIT License. See [LICENSE](LICENSE). Upstream documentation is at [gitleaks.io](https://gitleaks.io).
 
 Built for [Hackathon name], Cybersecurity & Privacy track.
