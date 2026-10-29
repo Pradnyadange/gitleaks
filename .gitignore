@@ -24,6 +24,8 @@ testdata/expected/report/*.got.*
 dist/
 
 dryrun.txt
+audit-findings.json
+live.json
 *-audit.json
 p2-*.json
 p3-*.json
@@ -32,3 +34,6 @@ restored.json
 .secretsentinel-cache.json
 *.broken
 *.new
+
+.gitleaksignore.suggested
+*.bak

@@ -26,4 +26,8 @@ type EnrichedFinding struct {
 	PathType      string   `json:"path_type"`
 	InHistoryOnly bool     `json:"in_history_only"`
 	Triage        *Triage  `json:"triage,omitempty"`
+	RiskScore     int      `json:"risk_score"`
+	RiskLevel     string   `json:"risk_level"`
+	RiskFactors   []string `json:"risk_factors"`
+	RiskImpact    string   `json:"risk_impact"`
 }

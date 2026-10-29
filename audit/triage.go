@@ -21,15 +21,18 @@ type TriageOptions struct {
 	Concurrency int
 	MaxFindings int
 	Model       string
+	RPM         int
+	RateLimiter *RateLimiter
 }
 
 type TriageStats struct {
-	Verdicts     map[string]int
-	Sources      map[string]int
-	APICalls     int
-	CacheHits    int
-	LLMSuccesses int
-	LLMFailures  int
+	Verdicts        map[string]int
+	Sources         map[string]int
+	APICalls        int
+	CacheHits       int
+	LLMSuccesses    int
+	LLMFailures     int
+	RetriesAfter429 int
 }
 
 const CacheFilename = ".secretsentinel-cache.json"
@@ -54,6 +57,10 @@ func TriageFindings(ctx context.Context, findings []EnrichedFinding, client LLMC
 	}
 	if opts.Model == "" {
 		opts.Model = "default-model"
+	}
+	limiter := opts.RateLimiter
+	if limiter == nil && opts.RPM > 0 {
+		limiter = NewRateLimiter(opts.RPM)
 	}
 	if opts.DryRun {
 		return DryRunTriage(findings, opts)
@@ -131,6 +138,10 @@ func TriageFindings(ctx context.Context, findings []EnrichedFinding, client LLMC
 				return
 			}
 
+			if limiter != nil {
+				_ = limiter.Wait(ctx)
+			}
+
 			rawResp, err := client.Classify(ctx, SystemPrompt, userPrompt)
 			atomic.AddInt32(&apiCalls, 1)
 
@@ -203,6 +214,9 @@ func TriageFindings(ctx context.Context, findings []EnrichedFinding, client LLMC
 	stats.CacheHits = int(cacheHits)
 	stats.LLMSuccesses = int(llmSuccesses)
 	stats.LLMFailures = int(llmFailures)
+	if tracker, ok := client.(interface{ RetriesAfter429() int }); ok {
+		stats.RetriesAfter429 = tracker.RetriesAfter429()
+	}
 
 	for _, f := range findings {
 		if f.Triage != nil {

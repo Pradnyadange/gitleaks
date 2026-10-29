@@ -25,6 +25,14 @@ var (
 	triageConcurrency  int
 	maxFindings        int
 	triageContextLines int
+	triageRPM          int
+	generateAllowlist  bool
+	allowlistOutput    string
+	allowlistMinConf   float64
+	allowlistDryRun    bool
+	generateReport     bool
+	reportType         string
+	reportOutput       string
 )
 
 var auditCmd = &cobra.Command{
@@ -41,12 +49,7 @@ var auditCmd = &cobra.Command{
 				geminiModel = os.Getenv("GEMINI_MODEL")
 			}
 			if geminiModel == "" {
-				log.Fatal().Msg("gemini model must be specified via --gemini-model or GEMINI_MODEL env when --triage is enabled without --offline")
-			}
-
-			apiKey := os.Getenv("GEMINI_API_KEY")
-			if apiKey == "" {
-				log.Fatal().Msg("GEMINI_API_KEY environment variable is required when --triage is enabled without --offline")
+				geminiModel = "gemini-2.5-flash"
 			}
 		}
 
@@ -175,7 +178,45 @@ var auditCmd = &cobra.Command{
 				Concurrency: triageConcurrency,
 				MaxFindings: maxFindings,
 				Model:       geminiModel,
+				RPM:         triageRPM,
 			})
+		}
+
+		for i := range enriched {
+			enriched[i].RiskScore, enriched[i].RiskLevel, enriched[i].RiskFactors, enriched[i].RiskImpact = audit.CalculateRisk(enriched[i])
+		}
+
+		audit.SortFindingsByScore(enriched)
+
+		if generateAllowlist {
+			sum, err := audit.WriteSuggestedAllowlist(enriched, audit.AllowlistOptions{
+				OutputPath:    allowlistOutput,
+				MinConfidence: allowlistMinConf,
+				DryRun:        allowlistDryRun,
+			})
+			if err != nil {
+				log.Error().Err(err).Msg("failed to generate allowlist")
+			} else {
+				fmt.Print(sum.String())
+			}
+		}
+
+		if generateReport {
+			if rf, err := cmd.Flags().GetString("report-format"); err == nil && rf != "" {
+				reportType = rf
+			}
+			if reportType != "markdown" && reportType != "html" {
+				log.Fatal().Msgf("invalid report type %q: expected 'markdown' or 'html'", reportType)
+			}
+			if reportType == "html" && reportOutput == "audit-report.md" {
+				reportOutput = "audit-report.html"
+			}
+			reportData := audit.GenerateReport(enriched, reportType)
+			if err := os.WriteFile(reportOutput, []byte(reportData), 0644); err != nil {
+				log.Error().Err(err).Msg("failed to write report")
+			} else {
+				log.Info().Str("output", reportOutput).Msg("audit report generated successfully")
+			}
 		}
 
 		fileData, err := json.MarshalIndent(enriched, "", "  ")
@@ -205,6 +246,7 @@ var auditCmd = &cobra.Command{
 			fmt.Printf("Cache Hits: %d\n", stats.CacheHits)
 			fmt.Printf("LLM Successes: %d\n", stats.LLMSuccesses)
 			fmt.Printf("LLM Failures: %d\n", stats.LLMFailures)
+			fmt.Printf("Retries after 429: %d\n", stats.RetriesAfter429)
 			fmt.Println("======================================")
 		}
 
@@ -233,4 +275,12 @@ func init() {
 	auditCmd.Flags().IntVar(&triageConcurrency, "triage-concurrency", 3, "concurrency pool size for triage workers")
 	auditCmd.Flags().IntVar(&maxFindings, "max-findings", 50, "maximum number of findings to triage")
 	auditCmd.Flags().IntVar(&triageContextLines, "triage-context-lines", 10, "context lines included in triage prompt")
+	auditCmd.Flags().IntVar(&triageRPM, "triage-rpm", 0, "requests per minute limit for triage (0 = unlimited)")
+	auditCmd.Flags().BoolVar(&generateAllowlist, "generate-allowlist", false, "auto-generate .gitleaksignore for false positives")
+	auditCmd.Flags().StringVar(&allowlistOutput, "allowlist-output", ".gitleaksignore.suggested", "output path for generated allowlist")
+	auditCmd.Flags().BoolVar(&generateReport, "generate-report", false, "generate summary report (markdown or html)")
+	auditCmd.Flags().StringVar(&reportType, "report-type", "markdown", "report format: markdown or html")
+	auditCmd.Flags().StringVar(&reportOutput, "report-output", "audit-report.md", "output path for summary report")
+	auditCmd.Flags().BoolVar(&allowlistDryRun, "allowlist-dry-run", false, "print allowlist suggestions without writing")
+	auditCmd.Flags().Float64Var(&allowlistMinConf, "allowlist-min-confidence", 0.8, "minimum confidence for auto-allowlisting")
 }

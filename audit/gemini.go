@@ -7,38 +7,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
 type GeminiClient struct {
-	model  string
-	apiKey string
+	Model           string
+	APIKey          string
+	BaseURL         string
+	HTTPClient      *http.Client
+	retriesAfter429 int64
+}
+
+func (g *GeminiClient) RetriesAfter429() int {
+	return int(atomic.LoadInt64(&g.retriesAfter429))
 }
 
 func NewGeminiClient(model, apiKey string) *GeminiClient {
 	return &GeminiClient{
-		model:  model,
-		apiKey: apiKey,
+		Model:  model,
+		APIKey: apiKey,
 	}
-}
-
-type geminiRequest struct {
-	SystemInstruction struct {
-		Parts []struct {
-			Text string `json:"text"`
-		} `json:"parts"`
-	} `json:"system_instruction"`
-	Contents []struct {
-		Role  string `json:"role"`
-		Parts []struct {
-			Text string `json:"text"`
-		} `json:"parts"`
-	} `json:"contents"`
-	GenerationConfig struct {
-		Temperature      float64         `json:"temperature"`
-		ResponseMimeType string          `json:"responseMimeType"`
-		ResponseSchema   json.RawMessage `json:"responseSchema"`
-	} `json:"generationConfig"`
 }
 
 type geminiResponse struct {
@@ -51,104 +40,135 @@ type geminiResponse struct {
 	} `json:"candidates"`
 }
 
-func (c *GeminiClient) Classify(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", c.model)
+func parseRetryDelay(body []byte) time.Duration {
+	var resp struct {
+		Error struct {
+			Details []map[string]interface{} `json:"details"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(body, &resp) != nil {
+		return 0
+	}
+	for _, detail := range resp.Error.Details {
+		if val, ok := detail["retryDelay"].(string); ok {
+			if d, err := time.ParseDuration(val); err == nil {
+				return d
+			}
+		}
+	}
+	return 0
+}
 
-	schema := json.RawMessage(`{
-		"type": "OBJECT",
-		"properties": {
-			"verdict": { "type": "STRING" },
-			"confidence": { "type": "NUMBER" },
-			"reason": { "type": "STRING" }
+func (g *GeminiClient) Classify(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", g.Model)
+	if g.BaseURL != "" {
+		url = fmt.Sprintf("%s/v1beta/models/%s:generateContent", g.BaseURL, g.Model)
+	}
+
+	payload := map[string]interface{}{
+		"systemInstruction": map[string]interface{}{
+			"parts": []map[string]string{{"text": systemPrompt}},
 		},
-		"required": ["verdict", "confidence", "reason"]
-	}`)
-
-	var reqBody geminiRequest
-	reqBody.SystemInstruction.Parts = []struct {
-		Text string `json:"text"`
-	}{{Text: systemPrompt}}
-
-	reqBody.Contents = []struct {
-		Role  string `json:"role"`
-		Parts []struct {
-			Text string `json:"text"`
-		} `json:"parts"`
-	}{
-		{
-			Role: "user",
-			Parts: []struct {
-				Text string `json:"text"`
-			}{{Text: userPrompt}},
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]string{{"text": userPrompt}},
+			},
+		},
+		"generationConfig": map[string]interface{}{
+			"responseMimeType": "application/json",
 		},
 	}
 
-	reqBody.GenerationConfig.Temperature = 0
-	reqBody.GenerationConfig.ResponseMimeType = "application/json"
-	reqBody.GenerationConfig.ResponseSchema = schema
-
-	jsonBytes, err := json.Marshal(reqBody)
+	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	var respBody []byte
+	var statusCode int
 
-	var lastErr error
+	maxRetries := 5
 	backoff := 1 * time.Second
 
-	for attempt := 0; attempt < 4; attempt++ {
-		if attempt > 0 {
+	httpClient := http.DefaultClient
+	if g.HTTPClient != nil {
+		httpClient = g.HTTPClient
+	}
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-goog-api-key", g.APIKey)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			if attempt == maxRetries {
+				return "", err
+			}
 			select {
 			case <-ctx.Done():
 				return "", ctx.Err()
 			case <-time.After(backoff):
 				backoff *= 2
+				continue
 			}
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBytes))
-		if err != nil {
-			return "", err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("x-goog-api-key", c.apiKey)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		respBody, _ = io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if readErr != nil {
-			lastErr = readErr
-			continue
+		statusCode = resp.StatusCode
+
+		if statusCode == http.StatusOK {
+			break
 		}
 
-		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-			lastErr = fmt.Errorf("gemini api error status %d: %s", resp.StatusCode, string(bodyBytes))
-			continue
+		// Fail immediately on 4xx except 429
+		if statusCode >= 400 && statusCode < 500 && statusCode != http.StatusTooManyRequests {
+			return "", fmt.Errorf("API error status %d: %s", statusCode, string(respBody))
 		}
 
-		if resp.StatusCode != 200 {
-			return "", fmt.Errorf("gemini api non-retryable error status %d: %s", resp.StatusCode, string(bodyBytes))
+		// Retry only on 429 and 5xx
+		if statusCode == http.StatusTooManyRequests || statusCode >= 500 {
+			if attempt == maxRetries {
+				return "", fmt.Errorf("API error status %d after %d retries: %s", statusCode, maxRetries, string(respBody))
+			}
+
+			waitDur := backoff
+			if statusCode == http.StatusTooManyRequests {
+				atomic.AddInt64(&g.retriesAfter429, 1)
+				if delay := parseRetryDelay(respBody); delay > 0 {
+					waitDur = delay + 1*time.Second
+					if waitDur > 70*time.Second {
+						waitDur = 70 * time.Second
+					}
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(waitDur):
+				if statusCode != http.StatusTooManyRequests {
+					backoff *= 2
+				}
+				continue
+			}
 		}
 
-		var gemResp geminiResponse
-		if err := json.Unmarshal(bodyBytes, &gemResp); err != nil {
-			return "", err
-		}
-
-		if len(gemResp.Candidates) == 0 || len(gemResp.Candidates[0].Content.Parts) == 0 {
-			return "", fmt.Errorf("empty response candidates from gemini api")
-		}
-
-		return gemResp.Candidates[0].Content.Parts[0].Text, nil
+		return "", fmt.Errorf("unexpected API status %d: %s", statusCode, string(respBody))
 	}
 
-	return "", fmt.Errorf("gemini api request failed after retries: %w", lastErr)
+	var gemResp geminiResponse
+	if err := json.Unmarshal(respBody, &gemResp); err != nil {
+		return "", err
+	}
+
+	if len(gemResp.Candidates) == 0 || len(gemResp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("empty response candidates from gemini api")
+	}
+
+	return gemResp.Candidates[0].Content.Parts[0].Text, nil
 }
