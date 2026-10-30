@@ -11,7 +11,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func ExtractContext(targetPath string, mode string, commit string, filePath string, targetLine int, contextLines int, secret string, maskedSecret string, includeRaw bool) []string {
+func ExtractContext(targetPath string, mode string, commit string, filePath string, targetLine int, contextLines int, secret string, maskedSecret string, includeRaw bool, ruleIDOpt ...string) []string {
+	ruleID := ""
+	if len(ruleIDOpt) > 0 {
+		ruleID = ruleIDOpt[0]
+	}
+
 	if targetLine <= 0 {
 		targetLine = 1
 	}
@@ -62,10 +67,43 @@ func ExtractContext(targetPath string, mode string, commit string, filePath stri
 		end = len(rawLines) - 1
 	}
 
+	isMultiLine := strings.Contains(secret, "\n") || strings.Contains(secret, "PRIVATE KEY") || ruleID == "private-key"
+
 	var context []string
+	redactedPrinted := false
 	for i := start; i <= end; i++ {
+		lineNum := i + 1
 		line := rawLines[i]
-		if secret != "" && !includeRaw {
+
+		if isMultiLine {
+			secretLineCount := strings.Count(secret, "\n")
+			if lineNum >= targetLine && lineNum <= targetLine+secretLineCount {
+				if !redactedPrinted {
+					context = append(context, "[REDACTED MULTI-LINE SECRET]")
+					redactedPrinted = true
+				}
+				continue
+			}
+
+			// Belt and braces check for lines containing secret parts
+			hasPart := false
+			for _, part := range strings.Split(secret, "\n") {
+				trimmed := strings.TrimSpace(part)
+				if len(trimmed) > 4 && strings.Contains(line, trimmed) {
+					hasPart = true
+					break
+				}
+			}
+			if hasPart {
+				if !redactedPrinted {
+					context = append(context, "[REDACTED MULTI-LINE SECRET]")
+					redactedPrinted = true
+				}
+				continue
+			}
+		}
+
+		if lineNum == targetLine && !includeRaw {
 			line = strings.ReplaceAll(line, secret, maskedSecret)
 		}
 		context = append(context, line)

@@ -141,6 +141,7 @@ var auditCmd = &cobra.Command{
 				f.Secret,
 				masked,
 				auditIncludeRaw,
+				f.RuleID,
 			)
 			pathType := audit.DetectPathType(f.File)
 			inHistory := audit.IsInHistoryOnly(targetPath, f.File)

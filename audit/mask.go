@@ -1,12 +1,19 @@
 package audit
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func MaskSecret(secret string) string {
+	if secret == "" {
+		return ""
+	}
+	if strings.Contains(secret, "\n") || strings.Contains(secret, "PRIVATE KEY") || len(strings.Split(secret, "\n")) > 1 {
+		lines := strings.Count(secret, "\n") + 1
+		return fmt.Sprintf("[MULTI-LINE SECRET, %d lines]", lines)
+	}
 	if len(secret) < 16 {
-		if len(secret) == 0 {
-			return ""
-		}
 		return strings.Repeat("*", len(secret))
 	}
 	prefix := secret[:4]

@@ -61,13 +61,14 @@ func CalculateRisk(f EnrichedFinding) (int, string, []string, string) {
 	score := 10
 	var factors []string
 
-	if f.PathType == "test" || f.PathType == "example" || f.PathType == "docs" {
+	switch f.PathType {
+	case "test", "example", "docs":
 		factors = append(factors, "Path type is non-production ("+f.PathType+")")
 		score -= 5
-	} else if f.PathType == "config" {
+	case "config":
 		factors = append(factors, "Path type is configuration")
 		score += 15
-	} else {
+	default:
 		factors = append(factors, "Path type is source code")
 		score += 20
 	}
