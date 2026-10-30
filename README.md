@@ -14,7 +14,7 @@
 |---|---|---|
 | 1. Foundation | `gitleaks audit` command with enriched findings | **Done** |
 | 2. AI triage | Verdict, confidence and reason per finding (Gemini + offline fallback + cache) | **Done** |
-| 3. Risk and allowlist | Risk ranking, auto-generated `.gitleaksignore`, Markdown/HTML report | Planned |
+| 3. Risk and allowlist | Risk ranking, auto-generated `.gitleaksignore`, Markdown/HTML report | **Done** |
 | 4. Auto-fix and recovery | Fix pull request, key rotation playbooks | Planned |
 | 5. Demo and submission | Demo repo, tests, final presentation | Planned |
 
