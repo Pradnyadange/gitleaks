@@ -25,6 +25,7 @@ type EnrichedFinding struct {
 	CodeContext   []string `json:"code_context"`
 	PathType      string   `json:"path_type"`
 	InHistoryOnly bool     `json:"in_history_only"`
+	RawSecret     string   `json:"-"`
 	Triage        *Triage  `json:"triage,omitempty"`
 	RiskScore     int      `json:"risk_score"`
 	RiskLevel     string   `json:"risk_level"`

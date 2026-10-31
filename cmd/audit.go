@@ -33,6 +33,10 @@ var (
 	generateReport     bool
 	reportType         string
 	reportOutput       string
+	fixEnabled         bool
+	applyFix           bool
+	fixBranch          string
+	fixIncludeReview   bool
 )
 
 var auditCmd = &cobra.Command{
@@ -42,6 +46,13 @@ var auditCmd = &cobra.Command{
 		targetPath := "."
 		if len(args) > 0 {
 			targetPath = args[0]
+		}
+
+		if fixEnabled || applyFix {
+			git := audit.NewGitRepo(targetPath)
+			if !git.IsGitRepo() {
+				log.Fatal().Msgf("target %s is not a valid git repository; auto-fix requires a git repo", targetPath)
+			}
 		}
 
 		if triageEnabled && !triageOffline && !triageDryRun {
@@ -163,6 +174,7 @@ var auditCmd = &cobra.Command{
 				CodeContext:   codeCtx,
 				PathType:      pathType,
 				InHistoryOnly: inHistory,
+				RawSecret:     f.Secret,
 			}
 			enriched = append(enriched, enrichedFinding)
 		}
@@ -217,6 +229,20 @@ var auditCmd = &cobra.Command{
 				log.Error().Err(err).Msg("failed to write report")
 			} else {
 				log.Info().Str("output", reportOutput).Msg("audit report generated successfully")
+			}
+		}
+
+		if fixEnabled || applyFix {
+			sum, err := audit.AutoFix(enriched, audit.FixOptions{
+				RepoDir:       targetPath,
+				Apply:         applyFix,
+				BranchName:    fixBranch,
+				IncludeReview: fixIncludeReview,
+			})
+			if err != nil {
+				log.Error().Err(err).Msg(audit.SanitizeOutput("auto-fix failed: "+err.Error(), enriched))
+			} else {
+				fmt.Print(audit.SanitizeOutput(sum.String(), enriched))
 			}
 		}
 
@@ -284,4 +310,8 @@ func init() {
 	auditCmd.Flags().StringVar(&reportOutput, "report-output", "audit-report.md", "output path for summary report")
 	auditCmd.Flags().BoolVar(&allowlistDryRun, "allowlist-dry-run", false, "print allowlist suggestions without writing")
 	auditCmd.Flags().Float64Var(&allowlistMinConf, "allowlist-min-confidence", 0.8, "minimum confidence for auto-allowlisting")
+	auditCmd.Flags().BoolVar(&fixEnabled, "fix", false, "preview auto-fix remediation for hardcoded secrets")
+	auditCmd.Flags().BoolVar(&applyFix, "apply-fix", false, "apply auto-fix remediation and commit changes to a branch")
+	auditCmd.Flags().StringVar(&fixBranch, "fix-branch", "secretsentinel/remediation", "git branch name for applied fixes")
+	auditCmd.Flags().BoolVar(&fixIncludeReview, "fix-include-review", false, "include findings with needs_review verdict in auto-fix")
 }
