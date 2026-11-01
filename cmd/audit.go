@@ -37,6 +37,8 @@ var (
 	applyFix           bool
 	fixBranch          string
 	fixIncludeReview   bool
+	playbookOutput     string
+	prDescOutput       string
 )
 
 var auditCmd = &cobra.Command{
@@ -232,8 +234,10 @@ var auditCmd = &cobra.Command{
 			}
 		}
 
+		var fixSum *audit.FixSummary
 		if fixEnabled || applyFix {
-			sum, err := audit.AutoFix(enriched, audit.FixOptions{
+			var err error
+			fixSum, err = audit.AutoFix(enriched, audit.FixOptions{
 				RepoDir:       targetPath,
 				Apply:         applyFix,
 				BranchName:    fixBranch,
@@ -242,7 +246,25 @@ var auditCmd = &cobra.Command{
 			if err != nil {
 				log.Error().Err(err).Msg(audit.SanitizeOutput("auto-fix failed: "+err.Error(), enriched))
 			} else {
-				fmt.Print(audit.SanitizeOutput(sum.String(), enriched))
+				fmt.Print(audit.SanitizeOutput(fixSum.String(), enriched))
+			}
+		}
+
+		if playbookOutput != "" {
+			opts := audit.PlaybookOptions{FixSummary: fixSum}
+			if err := audit.WritePlaybookFile(enriched, playbookOutput, opts); err != nil {
+				log.Error().Err(err).Msg("failed to write rotation playbook")
+			} else {
+				log.Info().Str("output", playbookOutput).Msg("rotation playbook generated successfully")
+			}
+		}
+
+		if prDescOutput != "" {
+			opts := audit.PlaybookOptions{FixSummary: fixSum}
+			if err := audit.WritePRDescriptionFile(enriched, prDescOutput, opts); err != nil {
+				log.Error().Err(err).Msg("failed to write PR description")
+			} else {
+				log.Info().Str("output", prDescOutput).Msg("PR description generated successfully")
 			}
 		}
 
@@ -314,4 +336,6 @@ func init() {
 	auditCmd.Flags().BoolVar(&applyFix, "apply-fix", false, "apply auto-fix remediation and commit changes to a branch")
 	auditCmd.Flags().StringVar(&fixBranch, "fix-branch", "secretsentinel/remediation", "git branch name for applied fixes")
 	auditCmd.Flags().BoolVar(&fixIncludeReview, "fix-include-review", false, "include findings with needs_review verdict in auto-fix")
+	auditCmd.Flags().StringVar(&playbookOutput, "playbook", "", "generate credential rotation playbook markdown file")
+	auditCmd.Flags().StringVar(&prDescOutput, "pr-description", "", "generate pull request remediation description markdown file")
 }
