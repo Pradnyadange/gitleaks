@@ -2,9 +2,9 @@
 
 **An AI-powered code security auditor built on top of [Gitleaks](https://github.com/gitleaks/gitleaks).**
 
-Track: Cybersecurity & Privacy | Team: [Team name] | Members: [Name] · [Name] · [Name]
+Track: Cybersecurity & Privacy | Team: Git Secure  | Members: Pradnya Dange
 
-> Gitleaks finds *possible* secrets. SecretSentinel answers the questions developers actually need answered: **Is it real? How dangerous is it? How do I stop the noise? How do I fix it?**
+> Gitleaks finds *possible* secrets. SecretSentinel answers the questions developers actually need answered: **Is it real? How dangerous is it? How do I stop the noise? How do I fix it? How do I recover?**
 
 ---
 
@@ -15,11 +15,11 @@ Track: Cybersecurity & Privacy | Team: [Team name] | Members: [Name] · [Name] �
 | 1. Foundation | `gitleaks audit` command with enriched findings | **Done** |
 | 2. AI triage | Verdict, confidence and reason per finding (Gemini, offline fallback, cache) | **Done** |
 | 3. Risk, allowlist, reports | Risk ranking, safe allowlist suggestions, Markdown/HTML reports, rate-limit handling, multi-line secret masking | **Done** |
-| 4a. Auto-fix | Preview and apply fixes on a separate review branch | **Done** (extra tests for refusal cases in progress) |
-| 4b. Recovery guidance | Rotation playbooks and a generated pull request description | Planned |
-| 5. Demo and submission | Demo repo, slides, recording | Planned |
+| 4a. Auto-fix | Preview and apply fixes on a separate review branch | **Done** |
+| 4b. Recovery guidance | Rotation playbook and a generated pull request description | **Done** |
+| 5. Demo and submission | Demo repo, slides, recording | In progress |
 
-This README documents what exists **today (Phases 1 to 4a)**. Anything marked Planned is not implemented. See [Known Limitations](#known-limitations).
+This README documents what exists **today (Phases 1 to 4b)**. See [Known Limitations](#known-limitations).
 
 ---
 
@@ -45,7 +45,7 @@ Gitleaks provides git-history, directory and stdin scanning, a regex and entropy
 | Output is raw JSON for experts | Markdown and HTML reports | 3 |
 | Private keys span many lines | Multi-line secrets are fully redacted | 3 |
 | Detects but never fixes | Auto-fix on a review branch (env vars, `.env.example`, `.gitignore`) | 4a |
-| No recovery guidance | Rotation playbooks and a pull request description | 4b (planned) |
+| No recovery guidance | Rotation playbook and a pull request description | 4b |
 
 ## Results So Far
 
@@ -56,7 +56,9 @@ On a small demo repository with 7 findings (3 real leaks and 4 decoys: a test fi
 - Risk ranking puts the three real leaks first (`critical`, `critical`, `high`) and the decoys at `info` or `low`.
 - The generated allowlist suppresses the 4 decoys: a Gitleaks scan with it reports **3**, with 0 invalid-entry warnings, and none of the real secrets are suppressed.
 - A second triage run costs 0 API calls (served from the cache).
-- `--apply-fix` creates a review branch with one commit that changes `config.py` to read `os.environ["GITHUB_TOKEN"]`, stops tracking `.env`, adds `.env` to `.gitignore` and lists `STRIPE_KEY` in `.env.example` (names only). The fixed Python file runs when the variable is set, and the developer's own branch and uncommitted `.env` edits are left untouched. A search of every output for the real secret values found nothing.
+- `--apply-fix` creates a review branch with one commit that changes `config.py` to read `os.environ["GITHUB_TOKEN"]`, stops tracking `.env`, adds `.env` to `.gitignore` and lists `STRIPE_KEY` in `.env.example` (names only). The fixed Python file runs when the variable is set, and the developer's own branch and uncommitted `.env` edits are left untouched.
+- `--playbook` and `--pr-description` produce a rotation playbook (GitHub and Stripe sections, the history-only key marked "rotate the key", the four decoys shown only as `Ignored: 4`) and a pull request description whose environment variable names match the ones the fix actually wrote.
+- A search of every output for the real secret values found nothing.
 
 This is a small, hand-built set, and several decoys carry obvious hints in their path or comments, so treat it as a working demonstration and not an accuracy benchmark.
 
@@ -72,6 +74,7 @@ Repo or folder
    -> Risk score and level, sorted highest first
    -> Optional outputs: JSON, suggested allowlist, Markdown/HTML report
    -> Optional fix: preview, or a review branch built in a separate git worktree
+   -> Optional recovery documents: rotation playbook, pull request description
 ```
 
 ## Quick Start
@@ -122,11 +125,12 @@ Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models"
   --generate-allowlist --generate-report --report-format html --report-output audit-report.html
 ```
 
-**5. Preview a fix, then apply it to a review branch:**
+**5. Preview a fix, apply it to a review branch, and write the recovery documents:**
 
 ```bash
 ./gitleaks audit --mode git ./path/to/repo --triage --fix          # preview, writes nothing
-./gitleaks audit --mode git ./path/to/repo --triage --apply-fix    # creates a local review branch
+./gitleaks audit --mode git ./path/to/repo --triage --apply-fix \
+  --playbook ROTATION_PLAYBOOK.md --pr-description PR_DESCRIPTION.md
 ```
 
 On Windows without building: `go run main.go audit --mode git "D:\path\to\repo" --triage`.
@@ -157,7 +161,9 @@ On Windows without building: `go run main.go audit --mode git "D:\path\to\repo" 
 | `--fix` | `false` | Preview fixes. Writes nothing |
 | `--apply-fix` | `false` | Create a local review branch with the fixes (implies `--fix`) |
 | `--fix-include-review` | `false` | Also fix findings triaged as `needs_review` |
-| `--fix-branch` | automatic | Name of the review branch. A number is appended if it already exists |
+| `--fix-branch` | `secretsentinel/remediation` | Name of the review branch. A number is appended if it already exists |
+| `--playbook` | off | Write a credential rotation playbook (Markdown) |
+| `--pr-description` | off | Write a pull request description (Markdown) |
 
 Existing Gitleaks flags (`--config`, `--baseline-path`, `--gitleaks-ignore-path`) still apply. `audit --help` lists every flag in your build.
 
@@ -213,12 +219,35 @@ Each of these is listed in the preview with a reason, and is left for a human:
 - Before editing, each file is re-read and the secret must appear on the expected line exactly once, otherwise the finding is skipped. Line endings (CRLF or LF) and file permissions are preserved.
 - Only the files that changed are added to the commit. Nothing is pushed or merged.
 - The worktree is always removed afterwards. If anything fails after the branch is created, the branch is deleted too.
-- The review branch is named `secretsentinel/remediation`, with a number appended if that name already exists.
+- The review branch is named `secretsentinel/remediation`, with a number appended if that name already exists (or the name given with `--fix-branch`).
 - Everything printed (previews, errors, git output) is passed through a helper that replaces any raw secret with its masked form. The commit message lists the file, rule and variable name per fix, and never secret material.
 
 After applying, review with `git diff <your-branch>...<fix-branch>` and roll back with `git branch -D <fix-branch>`.
 
 > **The diff shows the old secret.** The removed line in the review branch's diff contains the original value, which is unavoidable. The secret is already in git history, so **rotating the credential is what actually protects you.** Removing it from code does not remove it from history.
+
+---
+
+## Recovery Guidance (Phase 4b)
+
+Removing a secret from code does not make it safe, so `--playbook` and `--pr-description` write the follow-up documents. Both are generated from static templates: no LLM, no network. Both contain masked values only.
+
+**`--playbook <path>`** writes a credential rotation playbook:
+
+- an executive summary by provider with the highest risk level, and an `Ignored: N` count for findings triaged as false positives (no details)
+- an inventory of affected files with their status: *fixed on the review branch*, *history only: rotate the key*, *manual fix needed*, or *not fixed in this run*
+- one section per provider that actually appears in the findings (GitHub, AWS, Stripe, with a generic fallback for everything else, including private keys). Each section orders the steps: create the new credential, deploy it, revoke the old one, then audit the provider's logs for use of the old credential. It adds a note to revoke immediately if the credential may already be abused, and says to verify the steps against the provider's current documentation.
+- a warning that credentials in code or git history must be assumed compromised
+
+**`--pr-description <path>`** writes a pull request description for the review branch:
+
+- a table of the files the fix actually changed, with the environment variable names taken from the fix results (never guessed from rule IDs)
+- the environment variables that must be set in each deployment
+- a note that the diff shows the old value on removed lines
+- a "What this does not do" section: git history is not rewritten, nothing is pushed or merged, nothing is rotated automatically
+- a post-merge checklist: rotate the credentials, populate the new variables, confirm no `.env` is tracked, review the provider's audit logs
+
+Without `--apply-fix`, the documents say "not fixed in this run" and list no variable names.
 
 ---
 
@@ -251,7 +280,7 @@ Illustrative record (values shortened; field names follow the real output):
 }
 ```
 
-The raw secret is held in memory only while the fix engine needs it. It is excluded from JSON output, prompts and reports.
+The raw secret is held in memory only while the fix engine needs it. It is excluded from JSON output, prompts, reports and generated documents.
 
 Findings are sorted by risk score, highest first. A triage summary is printed after each triage run:
 
@@ -341,6 +370,7 @@ Sending code to an LLM is itself a risk, so SecretSentinel sends as little as po
 - **Key handling.** The API key is read only from the environment and is never logged. Rotate any key that has ever been pasted into a chat, file or commit.
 - **Safe failure.** Bad model output or API failure falls back to heuristics and the scan continues.
 - **Fixes never touch your working copy** (see [Auto-Fix](#auto-fix-phase-4a)).
+- **Generated Markdown is escaped.** File names and rule text are escaped so they cannot break tables or inject headings in the playbook or pull request description.
 
 Never commit audit output. `*-audit.json`, `audit-findings.json`, `.secretsentinel-cache.json`, `.gitleaksignore.suggested`, `*.bak` and `.env` are in `.gitignore`.
 
@@ -348,7 +378,8 @@ Never commit audit output. `*-audit.json`, `audit-findings.json`, `.secretsentin
 
 - **AI verdicts can be wrong.** In testing, a decoy `.env.example` that held a value in real key format was labeled a false positive because of a "placeholder" comment. Allowlist suggestions are therefore written to a separate file for human review, and nothing is allowlisted from heuristic verdicts.
 - **Auto-fix is deliberately narrow.** It handles Python, JS/TS and dotenv files only. Everything else, including history-only secrets, multi-line keys and secrets inside URLs, is reported for manual fixing.
-- **A fix does not make a secret safe.** The credential remains in git history and must be rotated. Rotation guidance is planned for Phase 4b.
+- **A fix does not make a secret safe.** The credential remains in git history and must be rotated. The playbook describes how, but it does not rotate anything for you.
+- **Rotation steps are static text.** They cover GitHub, AWS and Stripe plus a generic fallback, and provider consoles change, so each section tells the reader to verify the steps against the provider's current documentation.
 - **Fixes are based on committed state.** Uncommitted changes are not included in the review branch.
 - **Free-tier rate limits.** Gemini's free tier can reject bursts of requests. Failed calls fall back to heuristics and are not cached.
 - **Small evaluation set.** Accuracy and fix behavior have been checked on small demo repositories only.
@@ -378,6 +409,7 @@ audit/
   fix_lang.go         # Python, JS/TS and dotenv patchers
   fix_naming.go       # environment variable name extraction
   fix_sanitizer.go    # replaces raw secrets in anything printed
+  playbook.go         # rotation playbook and pull request description
   *_test.go           # unit tests
 ```
 
@@ -390,13 +422,13 @@ go build ./...
 go test -v ./audit/...
 ```
 
-Covered today: secret masking (including the 15/16/17-character boundary) and multi-line key redaction, path classification, context extraction edge cases, triage with a mock LLM (valid and malformed JSON, invalid verdicts, confidence clamping, prompt injection), cache behavior (offline not cached, LLM cached, model change invalidates, failures not cached), dry run (no credentials, no cache writes), 429 retry-delay parsing and non-retry of other 4xx errors, rate limiter spacing, risk scoring, allowlist safety (eligibility, injection, dedupe, backup, dry run), report generation (sorting, HTML escaping, no raw secrets), and the fix engine (Python, JS and CRLF patches, `import os` added once, environment variable naming, dotenv handling, review branch naming, the user's working tree and uncommitted `.env` left untouched, no raw secret in output or commit messages).
+Covered today: secret masking (including the 15/16/17-character boundary) and multi-line key redaction, path classification, context extraction edge cases, triage with a mock LLM (valid and malformed JSON, invalid verdicts, confidence clamping, prompt injection), cache behavior (offline not cached, LLM cached, model change invalidates, failures not cached), dry run (no credentials, no cache writes), 429 retry-delay parsing and non-retry of other 4xx errors, rate limiter spacing, risk scoring, allowlist safety (eligibility, injection, dedupe, backup, dry run), report generation (sorting, HTML escaping, no raw secrets), the fix engine (Python, JS and CRLF patches, `import os` added once, environment variable naming, review branch naming, the user's working tree and uncommitted `.env` left untouched, no raw secret in output or commit messages), the fix engine's refusal cases (secret inside a URL, history-only, untracked file, multi-line key, path traversal and external symlinks, dotenv handling in the worktree only, rollback after a forced failure, branch name collisions, preview writing nothing), and the playbook and pull request description (provider mapping, status taken from fix results, no variable names without `--apply-fix`, Markdown injection, no raw secrets, zero findings).
 
-End-to-end check: scan a repo of fake secrets, compare finding counts with plain `gitleaks git` / `gitleaks dir`, and search every output file (including the cache, reports and fix output) for the real secret values. None should appear.
+End-to-end check: scan a repo of fake secrets, compare finding counts with plain `gitleaks git` / `gitleaks dir`, and search every output file (including the cache, reports, fix output and generated documents) for the real secret values. None should appear.
 
 ## Roadmap
 
-1. **Phase 4b: Recovery guidance.** Offline rotation playbooks for common providers (GitHub, AWS, Stripe), and a generated pull request description with a "before you merge" checklist.
+1. **Evaluation on harder cases.** A real key in a docs or test file, and a revoked key in source, to measure what AI triage adds over the offline heuristics.
 2. **Stretch goals.** Git history cleanup plan (`git filter-repo` commands with warnings), consent-based key liveness check, an opt-in command that opens the pull request, Semgrep integration.
 
 ## Credits and License
