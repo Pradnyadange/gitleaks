@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' https://avatars.githubusercontent.com data:;">
+  <title>SecretSentinel Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --critical: #f85149;
+      --high: #db6d28;
+      --medium: #d29922;
+      --low: #3fb950;
+      --info: #8b949e;
+      --banner-bg: #1f2937;
+      --banner-border: #374151;
+      --badge-bg: #21262d;
+    }
+
+    [data-theme="light"] {
+      --bg: #f6f8fa;
+      --card-bg: #ffffff;
+      --border: #d0d7de;
+      --text: #24292f;
+      --text-muted: #57606a;
+      --heading: #1f2328;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --critical: #cf222e;
+      --high: #bc4c00;
+      --medium: #9a6700;
+      --low: #1a7f37;
+      --info: #57606a;
+      --banner-bg: #ddf4ff;
+      --banner-border: #54aeff;
+      --badge-bg: #eaeef2;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 60px;
+    }
+
+    header {
+      background-color: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--heading);
+    }
+    .brand-icon {
+      width: 24px;
+      height: 24px;
+      fill: var(--accent);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 6px 14px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    .btn:hover { background-color: var(--border); }
+    .btn-primary {
+      background-color: var(--accent);
+      color: #ffffff;
+      border-color: transparent;
+    }
+    .btn-primary:hover { background-color: var(--accent-hover); }
+    .btn-danger {
+      background-color: transparent;
+      color: var(--critical);
+      border-color: var(--border);
+    }
+    .btn-danger:hover {
+      background-color: var(--critical);
+      color: #ffffff;
+      border-color: transparent;
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+    }
+
+    .banner {
+      background-color: var(--banner-bg);
+      border-bottom: 1px solid var(--banner-border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 24px auto;
+      padding: 0 24px;
+    }
+
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .card-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--heading);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      background-color: var(--badge-bg);
+    }
+    .badge-critical { color: var(--critical); border: 1px solid var(--critical); }
+    .badge-high { color: var(--high); border: 1px solid var(--high); }
+    .badge-medium { color: var(--medium); border: 1px solid var(--medium); }
+    .badge-low { color: var(--low); border: 1px solid var(--low); }
+    .badge-info { color: var(--info); border: 1px solid var(--border); }
+
+    .table-container {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow-x: auto;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      text-align: left;
+    }
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th {
+      background-color: var(--bg);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    tbody tr:hover {
+      background-color: rgba(88, 166, 255, 0.04);
+      cursor: pointer;
+    }
+    tr.selected {
+      background-color: rgba(88, 166, 255, 0.1) !important;
+    }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    select, input[type="text"] {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      color: var(--text);
+      font-size: 0.875rem;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .modal-title {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--heading);
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    /* Detail Drawer */
+    .detail-drawer {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .detail-drawer.active { display: block; }
+
+    /* Pre artifact view */
+    pre.artifact-pre {
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.8125rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      padding: 8px 16px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .error-msg {
+      color: var(--critical);
+      font-size: 0.875rem;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .empty-state {
+      padding: 48px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Demo Notice Banner -->
+  <div id="demo-banner" class="banner" style="display: none;">
+    <span id="demo-banner-text">Sample data: nothing is stored in Supabase.</span>
+    <button class="btn btn-sm" id="btn-exit-demo">Exit Demo</button>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm0 18c-3.75-1-6.5-4.88-6.5-9V8.3l6.5-3.61 6.5 3.61V11c0 4.12-2.75 8-6.5 9z"/><path d="M11 7h2v6h-2zm0 8h2v2h-2z"/></svg>
+      <span>SecretSentinel</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="btn-theme-toggle">Theme</button>
+      <button class="btn" id="btn-demo-mode">Try the demo (no login)</button>
+      <button class="btn btn-primary" id="btn-open-upload">+ Upload Scan</button>
+      <div id="auth-section">
+        <button class="btn" id="btn-login-github">Sign in with GitHub</button>
+      </div>
+      <div id="user-section" style="display: none;" class="user-profile">
+        <img id="user-avatar" class="user-avatar" src="" alt="avatar">
+        <span id="user-name" style="font-weight: 600; font-size: 0.875rem;"></span>
+        <button class="btn" id="btn-sign-out">Sign Out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <div class="container">
+
+    <!-- Scans Navigation / Header View -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <div>
+        <h1 id="page-title" style="font-size: 1.5rem; font-weight: 700; color: var(--heading);">Security Scans</h1>
+        <p id="page-subtitle" style="font-size: 0.875rem; color: var(--text-muted);">Overview of repository audits and remediation workflows</p>
+      </div>
+      <div id="scan-nav-actions" style="display: none;">
+        <button class="btn" id="btn-back-to-scans">&larr; Back to Scans</button>
+        <button class="btn btn-danger" id="btn-delete-scan">Delete Scan</button>
+      </div>
+    </div>
+
+    <!-- Scans List View -->
+    <div id="scans-view">
+      <div class="table-container">
+        <table id="scans-table">
+          <thead>
+            <tr>
+              <th>Repository</th>
+              <th>Scan Mode</th>
+              <th>Date</th>
+              <th>Findings Summary</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="scans-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+        <div id="scans-empty" class="empty-state" style="display: none;">
+          No scans uploaded yet. Click <strong>+ Upload Scan</strong> or <strong>Try the demo</strong> to explore findings.
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan Detail View -->
+    <div id="scan-detail-view" style="display: none;">
+      
+      <!-- Metrics Cards -->
+      <div class="grid-cards">
+        <div class="card">
+          <div class="card-title">Total Findings</div>
+          <div class="card-value" id="metric-total">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Critical & High</div>
+          <div class="card-value" style="color: var(--critical);" id="metric-high">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Real Secrets</div>
+          <div class="card-value" style="color: var(--high);" id="metric-real">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Likely False Positives</div>
+          <div class="card-value" style="color: var(--low);" id="metric-fp">0</div>
+        </div>
+      </div>
+
+      <!-- Detail Panel (Expanded on Row Click) -->
+      <div id="detail-drawer" class="detail-drawer">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <div>
+            <h3 id="drawer-title" style="font-size: 1.125rem; font-weight: 700; color: var(--heading);"></h3>
+            <p id="drawer-loc" style="font-size: 0.8125rem; color: var(--text-muted);"></p>
+          </div>
+          <button class="btn" id="btn-close-drawer">&times; Close</button>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Triage Reason</div>
+          <p id="drawer-reason" style="margin-top: 4px; font-size: 0.875rem;"></p>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Risk Impact</div>
+          <p id="drawer-impact" style="margin-top: 4px; font-size: 0.875rem;"></p>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Risk Factors</div>
+          <ul id="drawer-factors" style="margin-top: 4px; padding-left: 20px; font-size: 0.875rem;"></ul>
+        </div>
+      </div>
+
+      <!-- Filters & Findings Table -->
+      <div class="filter-bar">
+        <select id="filter-risk">
+          <option value="all">All Risk Levels</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+          <option value="info">Info</option>
+        </select>
+        <select id="filter-verdict">
+          <option value="all">All Verdicts</option>
+          <option value="real_secret">Real Secret</option>
+          <option value="needs_review">Needs Review</option>
+          <option value="likely_false_positive">Likely False Positive</option>
+        </select>
+        <input type="text" id="filter-search" placeholder="Search file, rule, or secret...">
+      </div>
+
+      <div class="table-container">
+        <table id="findings-table">
+          <thead>
+            <tr>
+              <th>Risk Level</th>
+              <th>Score</th>
+              <th>Rule ID</th>
+              <th>File & Line</th>
+              <th>Masked Secret</th>
+              <th>Verdict</th>
+              <th>Confidence</th>
+              <th>Source</th>
+              <th>History Only</th>
+              <th>Review Status</th>
+            </tr>
+          </thead>
+          <tbody id="findings-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Artifact Tabs: Playbook & PR Description -->
+      <div style="margin-top: 32px;">
+        <div class="tabs">
+          <button class="tab-btn active" id="tab-playbook-btn">Rotation Playbook</button>
+          <button class="tab-btn" id="tab-pr-btn">PR Description</button>
+        </div>
+        <div id="tab-playbook-content">
+          <div style="margin-bottom: 8px; display: flex; justify-content: flex-end;">
+            <button class="btn btn-sm" id="btn-download-playbook">Download ROTATION_PLAYBOOK.md</button>
+          </div>
+          <pre id="pre-playbook" class="artifact-pre">No rotation playbook attached to this scan.</pre>
+        </div>
+        <div id="tab-pr-content" style="display: none;">
+          <div style="margin-bottom: 8px; display: flex; justify-content: flex-end;">
+            <button class="btn btn-sm" id="btn-download-pr">Download PR_DESCRIPTION.md</button>
+          </div>
+          <pre id="pre-pr" class="artifact-pre">No PR description attached to this scan.</pre>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Upload Modal -->
+  <div id="upload-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Upload SecretSentinel Audit</h2>
+        <button class="btn" id="btn-close-upload">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-repo-name">Repository Name *</label>
+        <input type="text" id="input-repo-name" style="width: 100%;" placeholder="e.g. acme/backend-api" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-scan-mode">Scan Mode</label>
+        <select id="select-scan-mode" style="width: 100%;">
+          <option value="git">git (Full Git History)</option>
+          <option value="dir">dir (Working Directory)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="file-findings">Audit Findings JSON (audit-findings.json) *</label>
+        <input type="file" id="file-findings" accept=".json" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="file-playbook">Rotation Playbook (Optional .md)</label>
+        <input type="file" id="file-playbook" accept=".md,.markdown,.txt">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="file-pr">PR Description (Optional .md)</label>
+        <input type="file" id="file-pr" accept=".md,.markdown,.txt">
+      </div>
+
+      <div id="upload-error" class="error-msg"></div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
+        <button class="btn" id="btn-cancel-upload">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-upload">Process & Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal-overlay">
+    <div class="modal" style="max-width: 440px;">
+      <h2 class="modal-title" style="margin-bottom: 12px; color: var(--critical);">Delete Scan</h2>
+      <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 20px;">
+        Are you sure you want to delete this scan and all its findings? This action cannot be undone.
+      </p>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn" id="btn-cancel-delete">Cancel</button>
+        <button class="btn btn-danger" id="btn-confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * SecretSentinel Configuration
+     * IMPORTANT: Never use service_role key in client-side code!
+     * Only use the public SUPABASE_ANON_KEY.
+     */
+    const SUPABASE_URL = "https://nsuzfpalpphomorfchub.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_dhM54axXJa8tJ3aGqJuTsQ_Dg67d166";
+
+    // Supabase client instance (initialized if keys provided)
+    let supabase = null;
+    if (SUPABASE_URL !== "https://your-project.supabase.co" && SUPABASE_ANON_KEY !== "your-anon-key" && window.supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // Application State
+    let isDemoMode = false;
+    let currentUser = null;
+    let currentScans = [];
+    let activeScan = null;
+    let activeFindings = [];
+
+    // Pre-populated Sample Data for Demo Mode (Safe, realistic, zero raw secrets)
+    const SAMPLE_SCANS = [
+      {
+        id: "demo-scan-1",
+        repository: "acme-corp/payment-service",
+        scan_mode: "git",
+        created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+        critical_count: 2,
+        high_count: 3,
+        medium_count: 2,
+        low_count: 1,
+        info_count: 0,
+        playbook_content: "# Incident Response: Credential Rotation Playbook\n\n> [!WARNING]\n> Exposed Stripe and AWS credentials require immediate revocation.\n\n## Stripe Rotation Procedure\n1. Invalidate compromised sk_live key in Dashboard\n2. Issue restricted replacement key\n3. Deploy to ECS task definitions\n",
+        pr_description_content: "## SecretSentinel Remediation PR\n\nReplaces hardcoded credentials with environment variables:\n- `STRIPE_KEY`\n- `AWS_ACCESS_KEY`\n\n### Post-Merge Checklist\n- [ ] Rotate keys at provider\n- [ ] Verify production task execution\n"
+      }
+    ];
+
+    const SAMPLE_FINDINGS = [
+      {
+        id: "demo-f-1",
+        scan_id: "demo-scan-1",
+        rule_id: "stripe-api-key",
+        file: "src/billing/checkout.py",
+        start_line: 42,
+        end_line: 42,
+        masked_secret: "sk_l****89",
+        risk_score: 95,
+        risk_level: "critical",
+        risk_impact: "Unauthorized charging and financial transactions via Stripe account",
+        risk_factors: ["Active working tree", "High entropy credential", "Production source code"],
+        path_type: "source",
+        in_history_only: false,
+        verdict: "real_secret",
+        confidence: 0.98,
+        source: "llm",
+        reason: "Active Stripe live secret key assigned to API client configuration",
+        review_status: "open"
+      },
+      {
+        id: "demo-f-2",
+        scan_id: "demo-scan-1",
+        rule_id: "aws-access-key",
+        file: "config/storage.json",
+        start_line: 15,
+        end_line: 15,
+        masked_secret: "AKIA****4X",
+        risk_score: 90,
+        risk_level: "critical",
+        risk_impact: "Access to production S3 customer document buckets",
+        risk_factors: ["Configuration file", "High privilege cloud credential"],
+        path_type: "config",
+        in_history_only: false,
+        verdict: "real_secret",
+        confidence: 0.95,
+        source: "llm",
+        reason: "Valid AWS IAM Access Key exposed in committed configuration",
+        review_status: "confirmed"
+      },
+      {
+        id: "demo-f-3",
+        scan_id: "demo-scan-1",
+        rule_id: "github-pat",
+        file: "scripts/deploy.sh",
+        start_line: 8,
+        end_line: 8,
+        masked_secret: "ghp_****Ko",
+        risk_score: 80,
+        risk_level: "high",
+        risk_impact: "Repository read/write and workflow dispatch access",
+        risk_factors: ["Active deployment script", "High entropy"],
+        path_type: "source",
+        in_history_only: false,
+        verdict: "real_secret",
+        confidence: 0.92,
+        source: "llm",
+        reason: "Personal access token hardcoded in deployment runner script",
+        review_status: "open"
+      },
+      {
+        id: "demo-f-4",
+        scan_id: "demo-scan-1",
+        rule_id: "slack-webhook-token",
+        file: "alerting/slack.js",
+        start_line: 23,
+        end_line: 23,
+        masked_secret: "xoxb-****12",
+        risk_score: 75,
+        risk_level: "high",
+        risk_impact: "Spamming alerting channels and message interception",
+        risk_factors: ["Source code", "Known webhook structure"],
+        path_type: "source",
+        in_history_only: false,
+        verdict: "real_secret",
+        confidence: 0.88,
+        source: "llm",
+        reason: "Slack notification bot token hardcoded in client library",
+        review_status: "open"
+      },
+      {
+        id: "demo-f-5",
+        scan_id: "demo-scan-1",
+        rule_id: "private-key",
+        file: "tests/fixtures/test_key.pem",
+        start_line: 1,
+        end_line: 5,
+        masked_secret: "[MULTI-LINE SECRET, 5 lines]",
+        risk_score: 70,
+        risk_level: "high",
+        risk_impact: "Potential server SSH impersonation if valid",
+        risk_factors: ["Multi-line private key", "Historical commit"],
+        path_type: "test",
+        in_history_only: true,
+        verdict: "needs_review",
+        confidence: 0.60,
+        source: "heuristic",
+        reason: "Private key in test directory, but requires verification against production servers",
+        review_status: "open"
+      },
+      {
+        id: "demo-f-6",
+        scan_id: "demo-scan-1",
+        rule_id: "generic-api-key",
+        file: "examples/quickstart.py",
+        start_line: 12,
+        end_line: 12,
+        masked_secret: "demo****88",
+        risk_score: 45,
+        risk_level: "medium",
+        risk_impact: "Potential API rate-limit exhaustion",
+        risk_factors: ["Example file", "Low entropy"],
+        path_type: "example",
+        in_history_only: false,
+        verdict: "needs_review",
+        confidence: 0.55,
+        source: "heuristic",
+        reason: "Generic token format found in example script",
+        review_status: "open"
+      },
+      {
+        id: "demo-f-7",
+        scan_id: "demo-scan-1",
+        rule_id: "jwt-token",
+        file: "tests/mock_auth.go",
+        start_line: 34,
+        end_line: 34,
+        masked_secret: "eyJh****99",
+        risk_score: 25,
+        risk_level: "low",
+        risk_impact: "None: mock test JWT token",
+        risk_factors: ["Test path", "Low risk"],
+        path_type: "test",
+        in_history_only: false,
+        verdict: "likely_false_positive",
+        confidence: 0.96,
+        source: "llm",
+        reason: "Dummy mock JWT token with expired test claims in unit test harness",
+        review_status: "false_positive"
+      },
+      {
+        id: "demo-f-8",
+        scan_id: "demo-scan-1",
+        rule_id: "datadog-api-key",
+        file: "docs/setup.md",
+        start_line: 90,
+        end_line: 90,
+        masked_secret: "1234****ab",
+        risk_score: 10,
+        risk_level: "low",
+        risk_impact: "None: placeholder string in documentation",
+        risk_factors: ["Documentation path"],
+        path_type: "docs",
+        in_history_only: false,
+        verdict: "likely_false_positive",
+        confidence: 0.99,
+        source: "llm",
+        reason: "Sequential placeholder digits in documentation tutorial",
+        review_status: "false_positive"
+      }
+    ];
+
+    // DOM Elements
+    const btnThemeToggle = document.getElementById("btn-theme-toggle");
+    const btnDemoMode = document.getElementById("btn-demo-mode");
+    const demoBanner = document.getElementById("demo-banner");
+    const btnExitDemo = document.getElementById("btn-exit-demo");
+    const btnOpenUpload = document.getElementById("btn-open-upload");
+    const uploadModal = document.getElementById("upload-modal");
+    const btnCloseUpload = document.getElementById("btn-close-upload");
+    const btnCancelUpload = document.getElementById("btn-cancel-upload");
+    const btnSubmitUpload = document.getElementById("btn-submit-upload");
+    const uploadError = document.getElementById("upload-error");
+
+    const authSection = document.getElementById("auth-section");
+    const userSection = document.getElementById("user-section");
+    const btnLoginGitHub = document.getElementById("btn-login-github");
+    const btnSignOut = document.getElementById("btn-sign-out");
+    const userAvatar = document.getElementById("user-avatar");
+    const userName = document.getElementById("user-name");
+
+    const scansView = document.getElementById("scans-view");
+    const scanDetailView = document.getElementById("scan-detail-view");
+    const scansTableBody = document.getElementById("scans-table-body");
+    const scansEmpty = document.getElementById("scans-empty");
+    const scanNavActions = document.getElementById("scan-nav-actions");
+    const btnBackToScans = document.getElementById("btn-back-to-scans");
+    const btnDeleteScan = document.getElementById("btn-delete-scan");
+    const deleteModal = document.getElementById("delete-modal");
+    const btnCancelDelete = document.getElementById("btn-cancel-delete");
+    const btnConfirmDelete = document.getElementById("btn-confirm-delete");
+
+    const findingsTableBody = document.getElementById("findings-table-body");
+    const detailDrawer = document.getElementById("detail-drawer");
+    const btnCloseDrawer = document.getElementById("btn-close-drawer");
+
+    const tabPlaybookBtn = document.getElementById("tab-playbook-btn");
+    const tabPrBtn = document.getElementById("tab-pr-btn");
+    const tabPlaybookContent = document.getElementById("tab-playbook-content");
+    const tabPrContent = document.getElementById("tab-pr-content");
+    const prePlaybook = document.getElementById("pre-playbook");
+    const prePr = document.getElementById("pre-pr");
+    const btnDownloadPlaybook = document.getElementById("btn-download-playbook");
+    const btnDownloadPr = document.getElementById("btn-download-pr");
+
+    const filterRisk = document.getElementById("filter-risk");
+    const filterVerdict = document.getElementById("filter-verdict");
+    const filterSearch = document.getElementById("filter-search");
+
+    // Theme Management
+    let currentTheme = localStorage.getItem("ss_theme") || "dark";
+    document.documentElement.setAttribute("data-theme", currentTheme);
+    btnThemeToggle.addEventListener("click", () => {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", currentTheme);
+      localStorage.setItem("ss_theme", currentTheme);
+    });
+
+    // Client-side Security Validator for Uploads
+    function validateAuditJsonSecurity(jsonString) {
+      if (!jsonString || typeof jsonString !== "string") {
+        throw new Error("Invalid payload provided");
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        throw new Error("Invalid JSON structure: failed to parse");
+      }
+
+      if (!Array.isArray(parsed)) {
+        throw new Error("Expected an array of findings in audit-findings.json");
+      }
+
+      if (parsed.length > 2000) {
+        throw new Error("Finding count exceeds maximum limit (2,000 items)");
+      }
+
+      // Regex patterns for detecting unmasked raw secret leakage
+      const rawSecretPatterns = [
+        { name: "GitHub Token", regex: /gh[pous]_[A-Za-z0-9_]{20,}/ },
+        { name: "Stripe Secret Key", regex: /sk_live_[A-Za-z0-9_]{20,}/ },
+        { name: "AWS Access Key", regex: /AKIA[0-9A-Z]{16}/ },
+        { name: "Private Key Header", regex: /-----BEGIN/ }
+      ];
+
+      for (let i = 0; i < parsed.length; i++) {
+        const item = parsed[i];
+        const rowNum = i + 1;
+
+        // Verify masked_secret does not leak long credentials
+        if (item.masked_secret) {
+          const ms = String(item.masked_secret);
+          if (/[A-Za-z0-9]{17,}/.test(ms) && !ms.includes("****") && !ms.includes("[MULTI-LINE")) {
+            throw new Error(`Upload rejected: potential unmasked secret at row ${rowNum} in field 'masked_secret'`);
+          }
+        }
+
+        // Deep pattern check across all string fields without echoing raw values
+        for (const [key, value] of Object.entries(item)) {
+          if (typeof value === "string") {
+            for (const pat of rawSecretPatterns) {
+              if (pat.regex.test(value)) {
+                throw new Error(`Security validation failed: unmasked ${pat.name} detected at row ${rowNum} in field '${key}'`);
+              }
+            }
+          }
+        }
+      }
+
+      return parsed;
+    }
+
+    // Auth Initialization
+    async function initAuth() {
+      if (!supabase) return;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      handleSession(session);
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        handleSession(session);
+      });
+    }
+
+    function handleSession(session) {
+      if (session && session.user) {
+        currentUser = session.user;
+        authSection.style.display = "none";
+        userSection.style.display = "flex";
+        userName.textContent = currentUser.user_metadata?.user_name || currentUser.email || "User";
+        if (currentUser.user_metadata?.avatar_url) {
+          userAvatar.src = currentUser.user_metadata.avatar_url;
+          userAvatar.style.display = "block";
+        } else {
+          userAvatar.style.display = "none";
+        }
+        // Clean URL hash tokens from address bar to prevent stale hash loops
+        if (window.location.hash && window.location.hash.includes("access_token")) {
+          history.replaceState(null, "", window.location.pathname);
+        }
+        if (!isDemoMode) {
+          loadUserScans();
+        }
+      } else {
+        currentUser = null;
+        authSection.style.display = "block";
+        userSection.style.display = "none";
+        if (!isDemoMode) {
+          currentScans = [];
+          renderScansList();
+        }
+      }
+    }
+
+    btnLoginGitHub.addEventListener("click", async () => {
+      if (!supabase) {
+        alert("Supabase keys are not configured. Please use 'Try the demo (no login)' to test the dashboard.");
+        return;
+      }
+      const redirectUrl = window.location.origin + window.location.pathname;
+      await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: { redirectTo: redirectUrl }
+      });
+    });
+
+    btnSignOut.addEventListener("click", async () => {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+      currentUser = null;
+      // Clean hash on sign-out
+      if (window.location.hash) {
+        history.replaceState(null, "", window.location.pathname);
+      }
+      handleSession(null);
+    });
+
+    // Demo Mode Management
+    function enterDemoMode() {
+      isDemoMode = true;
+      demoBanner.style.display = "flex";
+      currentScans = [...SAMPLE_SCANS];
+      renderScansList();
+      if (SAMPLE_SCANS.length > 0) {
+        viewScanDetails(SAMPLE_SCANS[0]);
+      }
+    }
+
+    function exitDemoMode() {
+      isDemoMode = false;
+      demoBanner.style.display = "none";
+      if (currentUser && supabase) {
+        loadUserScans();
+      } else {
+        currentScans = [];
+        renderScansList();
+      }
+    }
+
+    btnDemoMode.addEventListener("click", enterDemoMode);
+    btnExitDemo.addEventListener("click", exitDemoMode);
+
+    // Fetch user scans from Supabase
+    async function loadUserScans() {
+      if (!supabase || isDemoMode) return;
+      try {
+        const { data, error } = await supabase
+          .from("scans")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        currentScans = data || [];
+        renderScansList();
+      } catch (err) {
+        console.error("Failed to load scans", err);
+      }
+    }
+
+    // Render Scans List Table
+    function renderScansList() {
+      scansTableBody.textContent = "";
+      if (currentScans.length === 0) {
+        scansEmpty.style.display = "block";
+        return;
+      }
+      scansEmpty.style.display = "none";
+
+      currentScans.forEach(scan => {
+        const tr = document.createElement("tr");
+
+        const tdRepo = document.createElement("td");
+        tdRepo.style.fontWeight = "600";
+        tdRepo.textContent = scan.repository;
+
+        const tdMode = document.createElement("td");
+        const badgeMode = document.createElement("span");
+        badgeMode.className = "badge badge-info";
+        badgeMode.textContent = scan.scan_mode || "git";
+        tdMode.appendChild(badgeMode);
+
+        const tdDate = document.createElement("td");
+        tdDate.textContent = new Date(scan.created_at).toLocaleString();
+
+        const tdSummary = document.createElement("td");
+        const badgeWrap = document.createElement("div");
+        badgeWrap.style.display = "flex";
+        badgeWrap.style.gap = "6px";
+
+        if (scan.critical_count > 0) {
+          const b = document.createElement("span");
+          b.className = "badge badge-critical";
+          b.textContent = `${scan.critical_count} crit`;
+          badgeWrap.appendChild(b);
+        }
+        if (scan.high_count > 0) {
+          const b = document.createElement("span");
+          b.className = "badge badge-high";
+          b.textContent = `${scan.high_count} high`;
+          badgeWrap.appendChild(b);
+        }
+        if (scan.medium_count > 0) {
+          const b = document.createElement("span");
+          b.className = "badge badge-medium";
+          b.textContent = `${scan.medium_count} med`;
+          badgeWrap.appendChild(b);
+        }
+        if (scan.low_count > 0) {
+          const b = document.createElement("span");
+          b.className = "badge badge-low";
+          b.textContent = `${scan.low_count} low`;
+          badgeWrap.appendChild(b);
+        }
+        tdSummary.appendChild(badgeWrap);
+
+        const tdAction = document.createElement("td");
+        const btnView = document.createElement("button");
+        btnView.className = "btn";
+        btnView.textContent = "View Details";
+        btnView.addEventListener("click", (e) => {
+          e.stopPropagation();
+          viewScanDetails(scan);
+        });
+        tdAction.appendChild(btnView);
+
+        tr.appendChild(tdRepo);
+        tr.appendChild(tdMode);
+        tr.appendChild(tdDate);
+        tr.appendChild(tdSummary);
+        tr.appendChild(tdAction);
+
+        tr.addEventListener("click", () => viewScanDetails(scan));
+        scansTableBody.appendChild(tr);
+      });
+    }
+
+    // View Scan Details
+    async function viewScanDetails(scan) {
+      activeScan = scan;
+      scansView.style.display = "none";
+      scanDetailView.style.display = "block";
+      scanNavActions.style.display = "flex";
+
+      document.getElementById("page-title").textContent = scan.repository;
+      document.getElementById("page-subtitle").textContent = `Scan performed on ${new Date(scan.created_at).toLocaleString()} (${scan.scan_mode || "git"} mode)`;
+
+      // Previews
+      prePlaybook.textContent = scan.playbook_content || "No rotation playbook attached to this scan.";
+      prePr.textContent = scan.pr_description_content || "No PR description attached to this scan.";
+
+      // Load Findings
+      if (isDemoMode) {
+        activeFindings = SAMPLE_FINDINGS.filter(f => f.scan_id === scan.id);
+        updateFindingsMetrics();
+        renderFindingsTable();
+      } else if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from("findings")
+            .select("*")
+            .eq("scan_id", scan.id)
+            .order("risk_score", { ascending: false });
+
+          if (error) throw error;
+          activeFindings = data || [];
+          updateFindingsMetrics();
+          renderFindingsTable();
+        } catch (err) {
+          console.error("Failed to load findings", err);
+        }
+      }
+    }
+
+    btnBackToScans.addEventListener("click", () => {
+      activeScan = null;
+      activeFindings = [];
+      detailDrawer.classList.remove("active");
+      scanDetailView.style.display = "none";
+      scanNavActions.style.display = "none";
+      scansView.style.display = "block";
+      document.getElementById("page-title").textContent = "Security Scans";
+      document.getElementById("page-subtitle").textContent = "Overview of repository audits and remediation workflows";
+    });
+
+    // Metric Calculations
+    function updateFindingsMetrics() {
+      document.getElementById("metric-total").textContent = activeFindings.length;
+      const highCrit = activeFindings.filter(f => f.risk_level === "critical" || f.risk_level === "high").length;
+      document.getElementById("metric-high").textContent = highCrit;
+      const real = activeFindings.filter(f => f.verdict === "real_secret").length;
+      document.getElementById("metric-real").textContent = real;
+      const fp = activeFindings.filter(f => f.verdict === "likely_false_positive").length;
+      document.getElementById("metric-fp").textContent = fp;
+    }
+
+    // Render Findings Table
+    function renderFindingsTable() {
+      findingsTableBody.textContent = "";
+
+      const riskFilter = filterRisk.value;
+      const verdictFilter = filterVerdict.value;
+      const searchFilter = filterSearch.value.toLowerCase().trim();
+
+      const filtered = activeFindings.filter(f => {
+        if (riskFilter !== "all" && f.risk_level !== riskFilter) return false;
+        if (verdictFilter !== "all" && f.verdict !== verdictFilter) return false;
+        if (searchFilter) {
+          const matchFile = (f.file || "").toLowerCase().includes(searchFilter);
+          const matchRule = (f.rule_id || "").toLowerCase().includes(searchFilter);
+          const matchSecret = (f.masked_secret || "").toLowerCase().includes(searchFilter);
+          if (!matchFile && !matchRule && !matchSecret) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 10;
+        td.className = "empty-state";
+        td.textContent = "No findings matching the selected filters.";
+        tr.appendChild(td);
+        findingsTableBody.appendChild(tr);
+        return;
+      }
+
+      filtered.forEach(f => {
+        const tr = document.createElement("tr");
+
+        const tdRisk = document.createElement("td");
+        const badgeRisk = document.createElement("span");
+        badgeRisk.className = `badge badge-${f.risk_level || "info"}`;
+        badgeRisk.textContent = f.risk_level || "info";
+        tdRisk.appendChild(badgeRisk);
+
+        const tdScore = document.createElement("td");
+        tdScore.style.fontWeight = "700";
+        tdScore.textContent = f.risk_score != null ? f.risk_score : "-";
+
+        const tdRule = document.createElement("td");
+        tdRule.style.fontFamily = "ui-monospace, monospace";
+        tdRule.textContent = f.rule_id;
+
+        const tdLoc = document.createElement("td");
+        tdLoc.textContent = `${f.file}:${f.start_line}`;
+
+        const tdMask = document.createElement("td");
+        tdMask.style.fontFamily = "ui-monospace, monospace";
+        tdMask.textContent = f.masked_secret;
+
+        const tdVerdict = document.createElement("td");
+        tdVerdict.textContent = f.verdict || "needs_review";
+
+        const tdConf = document.createElement("td");
+        tdConf.textContent = f.confidence != null ? `${Math.round(f.confidence * 100)}%` : "-";
+
+        const tdSource = document.createElement("td");
+        tdSource.textContent = f.source || "heuristic";
+
+        const tdHist = document.createElement("td");
+        tdHist.textContent = f.in_history_only ? "Yes" : "No";
+
+        const tdStatus = document.createElement("td");
+        const selectStatus = document.createElement("select");
+        selectStatus.style.padding = "4px 8px";
+        ["open", "confirmed", "false_positive", "fixed", "rotated"].forEach(st => {
+          const opt = document.createElement("option");
+          opt.value = st;
+          opt.textContent = st;
+          if (f.review_status === st) opt.selected = true;
+          selectStatus.appendChild(opt);
+        });
+
+        selectStatus.addEventListener("click", (e) => e.stopPropagation());
+        selectStatus.addEventListener("change", async (e) => {
+          const newStatus = e.target.value;
+          f.review_status = newStatus;
+          if (!isDemoMode && supabase) {
+            try {
+              await supabase
+                .from("findings")
+                .update({ review_status: newStatus })
+                .eq("id", f.id);
+            } catch (err) {
+              console.error("Failed to update status", err);
+            }
+          }
+        });
+        tdStatus.appendChild(selectStatus);
+
+        tr.appendChild(tdRisk);
+        tr.appendChild(tdScore);
+        tr.appendChild(tdRule);
+        tr.appendChild(tdLoc);
+        tr.appendChild(tdMask);
+        tr.appendChild(tdVerdict);
+        tr.appendChild(tdConf);
+        tr.appendChild(tdSource);
+        tr.appendChild(tdHist);
+        tr.appendChild(tdStatus);
+
+        tr.addEventListener("click", () => {
+          document.querySelectorAll("#findings-table tbody tr").forEach(r => r.classList.remove("selected"));
+          tr.classList.add("selected");
+          showDetailDrawer(f);
+        });
+
+        findingsTableBody.appendChild(tr);
+      });
+    }
+
+    filterRisk.addEventListener("change", renderFindingsTable);
+    filterVerdict.addEventListener("change", renderFindingsTable);
+    filterSearch.addEventListener("input", renderFindingsTable);
+
+    // Detail Drawer Display
+    function showDetailDrawer(f) {
+      detailDrawer.classList.add("active");
+      document.getElementById("drawer-title").textContent = `${f.rule_id} (${f.risk_level.toUpperCase()}, Score: ${f.risk_score})`;
+      document.getElementById("drawer-loc").textContent = `Location: ${f.file} (Line ${f.start_line}) | Path Type: ${f.path_type || "source"}`;
+      document.getElementById("drawer-reason").textContent = f.reason || "No triage explanation available.";
+      document.getElementById("drawer-impact").textContent = f.risk_impact || "General unauthorized credential access risk.";
+
+      const factorsList = document.getElementById("drawer-factors");
+      factorsList.textContent = "";
+      if (Array.isArray(f.risk_factors) && f.risk_factors.length > 0) {
+        f.risk_factors.forEach(factor => {
+          const li = document.createElement("li");
+          li.textContent = factor;
+          factorsList.appendChild(li);
+        });
+      } else {
+        const li = document.createElement("li");
+        li.textContent = "Standard heuristic rules applied.";
+        factorsList.appendChild(li);
+      }
+    }
+
+    btnCloseDrawer.addEventListener("click", () => {
+      detailDrawer.classList.remove("active");
+      document.querySelectorAll("#findings-table tbody tr").forEach(r => r.classList.remove("selected"));
+    });
+
+    // Artifact Tabs
+    tabPlaybookBtn.addEventListener("click", () => {
+      tabPlaybookBtn.classList.add("active");
+      tabPrBtn.classList.remove("active");
+      tabPlaybookContent.style.display = "block";
+      tabPrContent.style.display = "none";
+    });
+
+    tabPrBtn.addEventListener("click", () => {
+      tabPrBtn.classList.add("active");
+      tabPlaybookBtn.classList.remove("active");
+      tabPrContent.style.display = "block";
+      tabPlaybookContent.style.display = "none";
+    });
+
+    // Blob Downloads
+    function downloadBlob(filename, content) {
+      const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    btnDownloadPlaybook.addEventListener("click", () => {
+      if (activeScan && activeScan.playbook_content) {
+        downloadBlob("ROTATION_PLAYBOOK.md", activeScan.playbook_content);
+      }
+    });
+
+    btnDownloadPr.addEventListener("click", () => {
+      if (activeScan && activeScan.pr_description_content) {
+        downloadBlob("PR_DESCRIPTION.md", activeScan.pr_description_content);
+      }
+    });
+
+    // Upload Modal Handling
+    btnOpenUpload.addEventListener("click", () => {
+      uploadError.style.display = "none";
+      uploadError.textContent = "";
+      uploadModal.classList.add("active");
+    });
+    btnCloseUpload.addEventListener("click", () => uploadModal.classList.remove("active"));
+    btnCancelUpload.addEventListener("click", () => uploadModal.classList.remove("active"));
+
+    // File Upload Submission & Validation
+    btnSubmitUpload.addEventListener("click", async () => {
+      uploadError.style.display = "none";
+      uploadError.textContent = "";
+
+      const repoName = document.getElementById("input-repo-name").value.trim();
+      const scanMode = document.getElementById("select-scan-mode").value;
+      const findingsFile = document.getElementById("file-findings").files[0];
+      const playbookFile = document.getElementById("file-playbook").files[0];
+      const prFile = document.getElementById("file-pr").files[0];
+
+      if (!repoName) {
+        showUploadError("Repository name is required.");
+        return;
+      }
+      if (!findingsFile) {
+        showUploadError("Audit findings JSON file is required.");
+        return;
+      }
+
+      // Check file size (<= 5MB)
+      if (findingsFile.size > 5 * 1024 * 1024) {
+        showUploadError("Findings file exceeds the maximum 5MB size limit.");
+        return;
+      }
+
+      btnSubmitUpload.disabled = true;
+      btnSubmitUpload.textContent = "Validating...";
+
+      try {
+        const jsonText = await findingsFile.text();
+        const validatedFindings = validateAuditJsonSecurity(jsonText);
+
+        let playbookText = "";
+        if (playbookFile) {
+          playbookText = await playbookFile.text();
+        }
+
+        let prText = "";
+        if (prFile) {
+          prText = await prFile.text();
+        }
+
+        // Calculate counts
+        let critCount = 0, highCount = 0, medCount = 0, lowCount = 0, infoCount = 0;
+        validatedFindings.forEach(f => {
+          const lvl = (f.risk_level || "info").toLowerCase();
+          if (lvl === "critical") critCount++;
+          else if (lvl === "high") highCount++;
+          else if (lvl === "medium") medCount++;
+          else if (lvl === "low") lowCount++;
+          else infoCount++;
+        });
+
+        if (isDemoMode || !supabase || !currentUser) {
+          // In demo mode, if Supabase is unconfigured, or when logged out: create local memory scan
+          const newScan = {
+            id: "scan-" + Date.now(),
+            repository: repoName,
+            scan_mode: scanMode,
+            created_at: new Date().toISOString(),
+            critical_count: critCount,
+            high_count: highCount,
+            medium_count: medCount,
+            low_count: lowCount,
+            info_count: infoCount,
+            playbook_content: playbookText,
+            pr_description_content: prText
+          };
+
+          const newFindings = validatedFindings.map((f, idx) => ({
+            id: `finding-${Date.now()}-${idx}`,
+            scan_id: newScan.id,
+            rule_id: f.rule_id,
+            file: f.file,
+            start_line: f.start_line,
+            end_line: f.end_line,
+            masked_secret: f.masked_secret,
+            risk_score: f.risk_score,
+            risk_level: f.risk_level,
+            risk_impact: f.risk_impact,
+            risk_factors: f.risk_factors || [],
+            path_type: f.path_type,
+            in_history_only: f.in_history_only,
+            verdict: f.triage?.verdict || "needs_review",
+            confidence: f.triage?.confidence || 0,
+            source: f.triage?.source || "heuristic",
+            reason: f.triage?.reason || "",
+            review_status: "open"
+          }));
+
+          currentScans.unshift(newScan);
+          SAMPLE_FINDINGS.push(...newFindings);
+          uploadModal.classList.remove("active");
+          btnSubmitUpload.disabled = false;
+          btnSubmitUpload.textContent = "Process & Upload";
+          renderScansList();
+          viewScanDetails(newScan);
+          return;
+        }
+
+        // Supabase Database Insertion
+        btnSubmitUpload.textContent = "Uploading to Database...";
+
+        // 1. Insert scan header
+        const { data: scanData, error: scanErr } = await supabase
+          .from("scans")
+          .insert({
+            repository: repoName,
+            scan_mode: scanMode,
+            critical_count: critCount,
+            high_count: highCount,
+            medium_count: medCount,
+            low_count: lowCount,
+            info_count: infoCount,
+            playbook_content: playbookText,
+            pr_description_content: prText
+          })
+          .select()
+          .single();
+
+        if (scanErr) throw scanErr;
+        const newScanId = scanData.id;
+
+        // 2. Batch insert findings in batches of 100 (omitting user_id and code context)
+        const findingsToInsert = validatedFindings.map(f => ({
+          scan_id: newScanId,
+          rule_id: f.rule_id,
+          file: f.file,
+          start_line: f.start_line,
+          end_line: f.end_line,
+          masked_secret: f.masked_secret,
+          risk_score: f.risk_score,
+          risk_level: f.risk_level,
+          risk_impact: f.risk_impact,
+          risk_factors: f.risk_factors || [],
+          path_type: f.path_type,
+          in_history_only: f.in_history_only,
+          verdict: f.triage?.verdict || "needs_review",
+          confidence: f.triage?.confidence || 0,
+          source: f.triage?.source || "heuristic",
+          reason: f.triage?.reason || "",
+          review_status: "open"
+        }));
+
+        const batchSize = 100;
+        for (let i = 0; i < findingsToInsert.length; i += batchSize) {
+          const batch = findingsToInsert.slice(i, i + batchSize);
+          const { error: batchErr } = await supabase.from("findings").insert(batch);
+          if (batchErr) {
+            // Rollback: delete the scan row (cascades findings)
+            await supabase.from("scans").delete().eq("id", newScanId);
+            throw new Error("Failed to insert findings batch. Scan rolled back: " + batchErr.message);
+          }
+        }
+
+        uploadModal.classList.remove("active");
+        btnSubmitUpload.disabled = false;
+        btnSubmitUpload.textContent = "Process & Upload";
+        await loadUserScans();
+        viewScanDetails(scanData);
+      } catch (err) {
+        showUploadError(err.message || "Upload processing error");
+        btnSubmitUpload.disabled = false;
+        btnSubmitUpload.textContent = "Process & Upload";
+      }
+    });
+
+    function showUploadError(msg) {
+      uploadError.textContent = msg;
+      uploadError.style.display = "block";
+    }
+
+    // Delete Scan Handling
+    btnDeleteScan.addEventListener("click", () => {
+      deleteModal.classList.add("active");
+    });
+    btnCancelDelete.addEventListener("click", () => {
+      deleteModal.classList.remove("active");
+    });
+
+    btnConfirmDelete.addEventListener("click", async () => {
+      if (!activeScan) return;
+
+      if (isDemoMode) {
+        currentScans = currentScans.filter(s => s.id !== activeScan.id);
+        deleteModal.classList.remove("active");
+        btnBackToScans.click();
+        renderScansList();
+        return;
+      }
+
+      if (supabase) {
+        try {
+          const { error } = await supabase
+            .from("scans")
+            .delete()
+            .eq("id", activeScan.id);
+
+          if (error) throw error;
+          deleteModal.classList.remove("active");
+          btnBackToScans.click();
+          await loadUserScans();
+        } catch (err) {
+          alert("Failed to delete scan: " + err.message);
+        }
+      }
+    });
+
+    // Initialize application
+    initAuth();
+  </script>
+</body>
+</html>
+
