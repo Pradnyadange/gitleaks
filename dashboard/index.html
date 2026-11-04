@@ -329,6 +329,30 @@
       display: none;
     }
 
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.02);
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .dropzone-label {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+    .dropzone-filename {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
     .empty-state {
       padding: 48px;
       text-align: center;
@@ -536,18 +560,30 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="file-findings">Audit Findings JSON (audit-findings.json) *</label>
-        <input type="file" id="file-findings" accept=".json" required>
+        <label class="form-label">Audit Findings JSON (audit-findings.json) *</label>
+        <div id="dropzone-findings" class="dropzone">
+          <div class="dropzone-label">Drag & drop <code>audit-findings.json</code> here, or click to browse</div>
+          <div id="dropzone-findings-file" class="dropzone-filename" style="display: none;"></div>
+          <input type="file" id="file-findings" style="display: none;" accept=".json">
+        </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="file-playbook">Rotation Playbook (Optional .md)</label>
-        <input type="file" id="file-playbook" accept=".md,.markdown,.txt">
+        <label class="form-label">Rotation Playbook (Optional .md)</label>
+        <div id="dropzone-playbook" class="dropzone">
+          <div class="dropzone-label">Drag & drop <code>ROTATION_PLAYBOOK.md</code> here, or click to browse</div>
+          <div id="dropzone-playbook-file" class="dropzone-filename" style="display: none;"></div>
+          <input type="file" id="file-playbook" style="display: none;" accept=".md,.markdown,.txt">
+        </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="file-pr">PR Description (Optional .md)</label>
-        <input type="file" id="file-pr" accept=".md,.markdown,.txt">
+        <label class="form-label">PR Description (Optional .md)</label>
+        <div id="dropzone-pr" class="dropzone">
+          <div class="dropzone-label">Drag & drop <code>PR_DESCRIPTION.md</code> here, or click to browse</div>
+          <div id="dropzone-pr-file" class="dropzone-filename" style="display: none;"></div>
+          <input type="file" id="file-pr" style="display: none;" accept=".md,.markdown,.txt">
+        </div>
       </div>
 
       <div id="upload-error" class="error-msg"></div>
@@ -1009,7 +1045,7 @@
 
         const tdRepo = document.createElement("td");
         tdRepo.style.fontWeight = "600";
-        tdRepo.textContent = scan.repository;
+        tdRepo.textContent = scan.repository || scan.repo_name || "Repository";
 
         const tdMode = document.createElement("td");
         const badgeMode = document.createElement("span");
@@ -1049,6 +1085,12 @@
           b.textContent = `${scan.low_count} low`;
           badgeWrap.appendChild(b);
         }
+        if (!badgeWrap.hasChildNodes() && scan.total_findings !== undefined) {
+          const b = document.createElement("span");
+          b.className = "badge badge-info";
+          b.textContent = `${scan.total_findings} findings`;
+          badgeWrap.appendChild(b);
+        }
         tdSummary.appendChild(badgeWrap);
 
         const tdAction = document.createElement("td");
@@ -1079,12 +1121,12 @@
       scanDetailView.style.display = "block";
       scanNavActions.style.display = "flex";
 
-      document.getElementById("page-title").textContent = scan.repository;
+      document.getElementById("page-title").textContent = scan.repository || scan.repo_name || "Repository";
       document.getElementById("page-subtitle").textContent = `Scan performed on ${new Date(scan.created_at).toLocaleString()} (${scan.scan_mode || "git"} mode)`;
 
       // Previews
-      prePlaybook.textContent = scan.playbook_content || "No rotation playbook attached to this scan.";
-      prePr.textContent = scan.pr_description_content || "No PR description attached to this scan.";
+      prePlaybook.textContent = scan.playbook_content || scan.playbook_md || "No rotation playbook attached to this scan.";
+      prePr.textContent = scan.pr_description_content || scan.pr_description_md || "No PR description attached to this scan.";
 
       // Load Findings
       if (isDemoMode) {
@@ -1319,6 +1361,49 @@
       }
     });
 
+    // Wire Drag & Drop Dropzones
+    function setupDropzone(dropzoneId, inputId, filenameId) {
+      const dropzone = document.getElementById(dropzoneId);
+      const input = document.getElementById(inputId);
+      const filenameDisplay = document.getElementById(filenameId);
+
+      dropzone.addEventListener("click", () => input.click());
+
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("dragover");
+      });
+
+      ["dragleave", "dragend"].forEach(type => {
+        dropzone.addEventListener(type, () => dropzone.classList.remove("dragover"));
+      });
+
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          input.files = e.dataTransfer.files;
+          updateDisplay();
+        }
+      });
+
+      input.addEventListener("change", updateDisplay);
+
+      function updateDisplay() {
+        if (input.files && input.files.length > 0) {
+          filenameDisplay.textContent = `Selected: ${input.files[0].name} (${(input.files[0].size / 1024).toFixed(1)} KB)`;
+          filenameDisplay.style.display = "block";
+        } else {
+          filenameDisplay.textContent = "";
+          filenameDisplay.style.display = "none";
+        }
+      }
+    }
+
+    setupDropzone("dropzone-findings", "file-findings", "dropzone-findings-file");
+    setupDropzone("dropzone-playbook", "file-playbook", "dropzone-playbook-file");
+    setupDropzone("dropzone-pr", "file-pr", "dropzone-pr-file");
+
     // Upload Modal Handling
     btnOpenUpload.addEventListener("click", () => {
       uploadError.style.display = "none";
@@ -1432,19 +1517,16 @@
         // Supabase Database Insertion
         btnSubmitUpload.textContent = "Uploading to Database...";
 
-        // 1. Insert scan header
+        // 1. Insert scan header (matching your existing database columns: repo_name, total_findings, playbook_md, pr_description_md)
         const { data: scanData, error: scanErr } = await supabase
           .from("scans")
           .insert({
-            repository: repoName,
+            user_id: currentUser ? currentUser.id : null,
+            repo_name: repoName,
             scan_mode: scanMode,
-            critical_count: critCount,
-            high_count: highCount,
-            medium_count: medCount,
-            low_count: lowCount,
-            info_count: infoCount,
-            playbook_content: playbookText,
-            pr_description_content: prText
+            total_findings: validatedFindings.length,
+            playbook_md: playbookText,
+            pr_description_md: prText
           })
           .select()
           .single();
@@ -1452,24 +1534,26 @@
         if (scanErr) throw scanErr;
         const newScanId = scanData.id;
 
-        // 2. Batch insert findings in batches of 100 (omitting user_id and code context)
+        // 2. Batch insert findings (matching database columns: scan_id, user_id, fingerprint, rule_id, file, start_line, path_type, in_history_only, secret_length, masked_secret, verdict, confidence, reason, triage_source, risk_score, risk_level, risk_factors, risk_impact, review_status)
         const findingsToInsert = validatedFindings.map(f => ({
           scan_id: newScanId,
+          user_id: currentUser ? currentUser.id : null,
+          fingerprint: f.fingerprint || `${f.file}:${f.rule_id}:${f.start_line}`,
           rule_id: f.rule_id,
           file: f.file,
           start_line: f.start_line,
-          end_line: f.end_line,
+          path_type: f.path_type || "source",
+          in_history_only: Boolean(f.in_history_only),
+          secret_length: f.secret_length || 0,
           masked_secret: f.masked_secret,
-          risk_score: f.risk_score,
-          risk_level: f.risk_level,
-          risk_impact: f.risk_impact,
-          risk_factors: f.risk_factors || [],
-          path_type: f.path_type,
-          in_history_only: f.in_history_only,
           verdict: f.triage?.verdict || "needs_review",
           confidence: f.triage?.confidence || 0,
-          source: f.triage?.source || "heuristic",
           reason: f.triage?.reason || "",
+          triage_source: f.triage?.source || "heuristic",
+          risk_score: f.risk_score || 0,
+          risk_level: f.risk_level || "info",
+          risk_factors: f.risk_factors || [],
+          risk_impact: f.risk_impact || "",
           review_status: "open"
         }));
 
