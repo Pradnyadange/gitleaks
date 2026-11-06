@@ -135,6 +135,18 @@ var auditCmd = &cobra.Command{
 		}
 		var enriched []audit.EnrichedFinding
 
+		// Build map of file -> finding references for neighbor secret redaction
+		fileFindingMap := make(map[string][]audit.FileFindingRef)
+		for _, f := range findings {
+			fileFindingMap[f.File] = append(fileFindingMap[f.File], audit.FileFindingRef{
+				StartLine:    f.StartLine,
+				EndLine:      f.EndLine,
+				Secret:       f.Secret,
+				MaskedSecret: audit.MaskSecret(f.Secret),
+				RuleID:       f.RuleID,
+			})
+		}
+
 		for _, f := range findings {
 			masked := audit.MaskSecret(f.Secret)
 			secLen := len(f.Secret)
@@ -144,7 +156,9 @@ var auditCmd = &cobra.Command{
 				ctxLines = triageContextLines
 			}
 
-			codeCtx := audit.ExtractContext(
+			neighbors := fileFindingMap[f.File]
+
+			codeCtx := audit.ExtractContextWithNeighbors(
 				targetPath,
 				auditMode,
 				f.Commit,
@@ -154,6 +168,7 @@ var auditCmd = &cobra.Command{
 				f.Secret,
 				masked,
 				auditIncludeRaw,
+				neighbors,
 				f.RuleID,
 			)
 			pathType := audit.DetectPathType(f.File)
