@@ -64,4 +64,4 @@ This is a small, hand-built set, and several decoys carry obvious hints in their
 
 ---
 
-## How It Works (today)
+## How It Works (today) 
